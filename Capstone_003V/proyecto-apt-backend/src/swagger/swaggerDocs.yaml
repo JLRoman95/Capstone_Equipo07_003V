@@ -1,0 +1,366 @@
+openapi: 3.0.0
+info:
+  title: API APT - Documentación
+  version: 1.0.0
+  description: |
+    Documentación completa del sistema APT (Automatización de Procesos y Trazabilidad).
+    Incluye módulos de autenticación, proveedores, productos, inventario y movimientos.
+servers:
+  - url: http://localhost:4000
+    description: Servidor local de desarrollo
+
+tags:
+  - name: Auth
+    description: Endpoints de autenticación de usuarios
+  - name: Proveedores
+    description: Gestión de proveedores
+  - name: Productos
+    description: Gestión de productos
+  - name: Inventario
+    description: Control de inventario de insumos
+  - name: Movimientos
+    description: Registro de entradas y salidas de insumos
+
+paths:
+
+  ###########################
+  ## 🔐 AUTH
+  ###########################
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar un usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nombre
+                - email
+                - password
+              properties:
+                nombre:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        201:
+          description: Usuario registrado exitosamente
+        400:
+          description: Error en la solicitud
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login de usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        200:
+          description: Inicio de sesión exitoso
+        401:
+          description: Credenciales inválidas
+
+  ###########################
+  ## 🏭 PROVEEDORES
+  ###########################
+  /api/proveedores:
+    get:
+      tags: [Proveedores]
+      summary: Listar todos los proveedores
+      responses:
+        200:
+          description: Lista de proveedores obtenida correctamente
+    post:
+      tags: [Proveedores]
+      summary: Crear un nuevo proveedor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nombre
+              properties:
+                nombre:
+                  type: string
+                contacto:
+                  type: string
+                telefono:
+                  type: string
+                email:
+                  type: string
+      responses:
+        201:
+          description: Proveedor creado
+        400:
+          description: Error de validación
+
+  /api/proveedores/{id}:
+    put:
+      tags: [Proveedores]
+      summary: Actualizar proveedor
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: ID del proveedor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                contacto:
+                  type: string
+                telefono:
+                  type: string
+                email:
+                  type: string
+      responses:
+        200:
+          description: Proveedor actualizado
+    delete:
+      tags: [Proveedores]
+      summary: Eliminar proveedor
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: ID del proveedor
+      responses:
+        200:
+          description: Proveedor eliminado
+
+  ###########################
+  ## 📦 PRODUCTOS
+  ###########################
+  /api/productos:
+    get:
+      tags: [Productos]
+      summary: Listar todos los productos
+      responses:
+        200:
+          description: Lista de productos obtenida correctamente
+    post:
+      tags: [Productos]
+      summary: Crear un nuevo producto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nombre
+                - codigo
+              properties:
+                nombre:
+                  type: string
+                codigo:
+                  type: string
+                categoria:
+                  type: string
+                unidad_medida:
+                  type: string
+                id_proveedor:
+                  type: integer
+      responses:
+        201:
+          description: Producto creado
+        400:
+          description: Error de validación
+
+  /api/productos/{id}:
+    put:
+      tags: [Productos]
+      summary: Actualizar producto
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                codigo:
+                  type: string
+                categoria:
+                  type: string
+                unidad_medida:
+                  type: string
+                id_proveedor:
+                  type: integer
+      responses:
+        200:
+          description: Producto actualizado
+    delete:
+      tags: [Productos]
+      summary: Eliminar producto
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        200:
+          description: Producto eliminado
+
+  ###########################
+  ## 📊 INVENTARIO
+  ###########################
+  /api/inventario:
+    get:
+      tags: [Inventario]
+      summary: Listar inventario
+      responses:
+        200:
+          description: Lista de inventario
+    post:
+      tags: [Inventario]
+      summary: Crear inventario inicial
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id_producto
+                - stock_actual
+                - fecha_caducidad
+              properties:
+                id_producto:
+                  type: integer
+                  description: ID del producto asociado al inventario
+                stock_actual:
+                  type: number
+                  description: Cantidad actual de stock del producto
+                stock_minimo:
+                  type: number
+                  description: Nivel mínimo de stock antes de generar alerta
+                fecha_caducidad:
+                  type: string
+                  format: date
+                  description: Fecha de caducidad del producto en inventario
+      responses:
+        201:
+          description: Inventario creado exitosamente
+        400:
+          description: Error de validación o datos inválidos
+
+  /api/inventario/{id}:
+    put:
+      tags: [Inventario]
+      summary: Actualizar inventario por ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID del registro de inventario a actualizar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stock_actual:
+                  type: number
+                  description: Nueva cantidad de stock actual
+                stock_minimo:
+                  type: number
+                  description: Nuevo valor de stock mínimo
+                fecha_caducidad:
+                  type: string
+                  format: date
+                  description: Nueva fecha de caducidad
+      responses:
+        200:
+          description: Inventario actualizado exitosamente
+        400:
+          description: Error de validación o datos inválidos
+    delete:
+      tags: [Inventario]
+      summary: Eliminar inventario por ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID del registro de inventario a eliminar
+      responses:
+        200:
+          description: Inventario eliminado exitosamente
+
+  ###########################
+  ## 🔄 MOVIMIENTOS
+  ###########################
+  /api/movimientos:
+    get:
+      tags: [Movimientos]
+      summary: Listar movimientos de insumos
+      responses:
+        200:
+          description: Lista de movimientos obtenida correctamente
+    post:
+      tags: [Movimientos]
+      summary: Crear un movimiento de insumo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id_producto
+                - tipo
+                - cantidad
+              properties:
+                id_producto:
+                  type: integer
+                tipo:
+                  type: string
+                  enum: [entrada, salida]
+                cantidad:
+                  type: number
+      responses:
+        201:
+          description: Movimiento registrado
+        400:
+          description: Error de validación o stock insuficiente
