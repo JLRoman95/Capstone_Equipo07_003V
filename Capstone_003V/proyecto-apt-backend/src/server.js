@@ -7,6 +7,7 @@ import proveedorRoutes from './routes/proveedorRoutes.js';
 import productoRoutes from './routes/productoRoutes.js';
 import inventarioRoutes from './routes/inventarioRoutes.js';
 import movimientosRoutes from './routes/movimientosRoutes.js';
+import checklistRoutes from './routes/checklistRoutes.js'; // <--- NUEVO
 import { setupSwagger } from './swagger/swaggerRoutes.js';
 
 dotenv.config();
@@ -26,6 +27,7 @@ app.use('/api/proveedores', proveedorRoutes);
 app.use('/api/productos', productoRoutes);
 app.use('/api/inventario', inventarioRoutes);
 app.use('/api/movimientos', movimientosRoutes);
+app.use('/api/checklists', checklistRoutes); // <--- NUEVO
 
 // Swagger (documentación)
 setupSwagger(app);

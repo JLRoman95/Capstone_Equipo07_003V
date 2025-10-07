@@ -43,7 +43,6 @@ export const listarProveedores = async (req, res) => {
     res.status(500).json({ error: 'Error al listar proveedores' });
   }
 };
-
 // Actualizar proveedor
 export const actualizarProveedor = async (req, res) => {
   // Validación

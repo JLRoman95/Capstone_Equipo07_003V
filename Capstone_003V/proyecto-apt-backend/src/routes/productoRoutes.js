@@ -15,16 +15,26 @@ router.get('/', listarProductos);
 // Crear un nuevo producto
 router.post(
   '/',
-  body('nombre').notEmpty().withMessage('Nombre es obligatorio'),
-  body('codigo').notEmpty().withMessage('Código es obligatorio'),
+  [
+    body('nombre').notEmpty().withMessage('Nombre es obligatorio'),
+    body('codigo').notEmpty().withMessage('Código es obligatorio'),
+    body('categoria').notEmpty().withMessage('Categoría es obligatoria'),
+    body('unidad_medida').notEmpty().withMessage('Unidad de medida es obligatoria'),
+    body('id_proveedor').isInt().withMessage('ID de proveedor debe ser un número entero')
+  ],
   crearProducto
 );
 
 // Actualizar un producto por ID
 router.put(
   '/:id',
-  body('nombre').notEmpty().withMessage('Nombre es obligatorio'),
-  body('codigo').notEmpty().withMessage('Código es obligatorio'),
+  [
+    body('nombre').notEmpty().withMessage('Nombre es obligatorio'),
+    body('codigo').notEmpty().withMessage('Código es obligatorio'),
+    body('categoria').notEmpty().withMessage('Categoría es obligatoria'),
+    body('unidad_medida').notEmpty().withMessage('Unidad de medida es obligatoria'),
+    body('id_proveedor').isInt().withMessage('ID de proveedor debe ser un número entero')
+  ],
   actualizarProducto
 );
 

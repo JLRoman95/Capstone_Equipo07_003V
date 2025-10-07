@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auditoría de Checklists - APT</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f4f4f4; }
+    tr:nth-child(even) { background-color: #fafafa; }
+    .detalle-btn { cursor: pointer; color: blue; text-decoration: underline; }
+    .items-table { margin-top: 10px; width: 95%; border: 1px solid #ddd; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Auditoría de Checklists</h1>
+
+  <table id="checklists-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Fecha</th>
+        <th>Turno</th>
+        <th>ID Usuario</th>
+        <th>Usuario</th>
+        <th>Estado</th>
+        <th>Detalles</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Checklists se insertarán aquí -->
+    </tbody>
+  </table>
+
+  <script>
+    const API_BASE = "http://localhost:4000/api"; // Cambia si tu backend corre en otro puerto
+
+    async function fetchChecklists() {
+      try {
+        const res = await fetch(`${API_BASE}/checklists`);
+        const data = await res.json();
+        // Ordenar por fecha descendente
+        data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+        renderChecklists(data);
+      } catch (err) {
+        console.error("Error al cargar checklists:", err);
+      }
+    }
+
+    function renderChecklists(checklists) {
+      const tbody = document.querySelector("#checklists-table tbody");
+      tbody.innerHTML = "";
+
+      checklists.forEach(c => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${c.id_checklist}</td>
+          <td>${c.fecha}</td>
+          <td>${c.turno}</td>
+          <td>${c.id_usuario}</td>
+          <td>${c.usuario_nombre}</td>
+          <td>${c.estado}</td>
+          <td><span class="detalle-btn" onclick="verDetalles(${c.id_checklist}, this)">Ver ítems</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function verDetalles(id, btn) {
+      // Si ya se mostró, ocultar
+      if (btn.nextElementSibling && btn.nextElementSibling.classList.contains('items-table')) {
+        btn.nextElementSibling.remove();
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/checklists/${id}/items`);
+        const items = await res.json();
+
+        const table = document.createElement("table");
+        table.classList.add("items-table");
+        const header = document.createElement("thead");
+        header.innerHTML = `<tr>
+          <th>Ítem</th>
+          <th>Resultado</th>
+          <th>Observación</th>
+        </tr>`;
+        table.appendChild(header);
+
+        const body = document.createElement("tbody");
+        items.forEach(i => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${i.descripcion}</td>
+            <td>${i.resultado}</td>
+            <td>${i.observacion || ""}</td>
+          `;
+          body.appendChild(tr);
+        });
+        table.appendChild(body);
+
+        btn.parentNode.appendChild(table);
+      } catch (err) {
+        console.error("Error al cargar ítems:", err);
+      }
+    }
+
+    // Inicializar
+    fetchChecklists();
+  </script>
+</body>
+</html>

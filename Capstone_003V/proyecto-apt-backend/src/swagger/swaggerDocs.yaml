@@ -2,9 +2,9 @@ openapi: 3.0.0
 info:
   title: API APT - Documentación
   version: 1.0.0
-  description: |
+  description: >
     Documentación completa del sistema APT (Automatización de Procesos y Trazabilidad).
-    Incluye módulos de autenticación, proveedores, productos, inventario y movimientos.
+    Incluye módulos de autenticación, proveedores, productos, inventario por lotes y movimientos.
 servers:
   - url: http://localhost:4000
     description: Servidor local de desarrollo
@@ -17,15 +17,269 @@ tags:
   - name: Productos
     description: Gestión de productos
   - name: Inventario
-    description: Control de inventario de insumos
+    description: Control de inventario de insumos por lotes
   - name: Movimientos
-    description: Registro de entradas y salidas de insumos
+    description: Registro de entradas, salidas y ajustes de insumos
+  - name: Checklists
+    description: Gestión de checklists de limpieza y control de calidad
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- Auth ---
+    RegisterRequest:
+      type: object
+      required:
+        - nombre
+        - email
+        - password
+      properties:
+        nombre:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        rol:
+          type: string
+          enum: ['admin','cocinero','auditor']
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    # --- Proveedor ---
+    Proveedor:
+      type: object
+      required:
+        - nombre
+      properties:
+        nombre:
+          type: string
+        contacto:
+          type: string
+        telefono:
+          type: string
+        email:
+          type: string
+
+    # --- Producto ---
+    ProductoCreate:
+      type: object
+      required:
+        - nombre
+        - codigo
+        - categoria
+        - unidad_medida
+        - id_proveedor
+      properties:
+        nombre:
+          type: string
+        codigo:
+          type: string
+        categoria:
+          type: string
+        unidad_medida:
+          type: string
+        id_proveedor:
+          type: integer
+        stock_minimo:
+          type: number
+          description: Nivel mínimo de stock (umbral por producto)
+    ProductoResponse:
+      allOf:
+        - $ref: '#/components/schemas/ProductoCreate'
+        - type: object
+          properties:
+            id_producto:
+              type: integer
+            stock_actual:
+              type: number
+            created_at:
+              type: string
+              format: date-time
+
+    # --- Inventario (lote) ---
+    InventarioCreate:
+      type: object
+      required:
+        - id_producto
+        - stock_actual
+      properties:
+        id_producto:
+          type: integer
+          description: ID del producto al que pertenece el lote
+        stock_actual:
+          type: number
+          description: Cantidad de unidades del lote
+        fecha_ingreso:
+          type: string
+          format: date-time
+          description: Fecha de ingreso del lote (opcional; si no se manda se asigna NOW)
+        fecha_caducidad:
+          type: string
+          format: date
+          example: "2025-10-15"
+          description: Fecha de caducidad del lote (opcional)
+    InventarioResponse:
+      type: object
+      properties:
+        id_inventario:
+          type: integer
+        id_producto:
+          type: integer
+        stock_actual:
+          type: number
+        fecha_ingreso:
+          type: string
+          format: date-time
+        fecha_caducidad:
+          type: string
+          format: date
+        fecha_actualizacion:
+          type: string
+          format: date-time
+        producto:
+          type: string
+
+    # --- Movimiento ---
+    MovimientoCreate:
+      type: object
+      required:
+        - id_producto
+        - tipo
+        - cantidad
+      properties:
+        id_producto:
+          type: integer
+        tipo:
+          type: string
+          enum: [entrada, salida, ajuste]
+          description: 'entrada: suma; salida: resta; ajuste: corrección (usar ajuste_sign para indicar positivo/negativo)'
+        cantidad:
+          type: number
+          description: Cantidad a mover (debe ser > 0)
+        id_inventario:
+          type: integer
+          description: (opcional) lote específico a afectar. Si no se envía, para salidas se aplica FIFO por fecha_caducidad/fecha_ingreso.
+        fecha_caducidad:
+          type: string
+          format: date
+          description: (opcional) si se crea un nuevo lote en una entrada/ajuste positivo
+        ajuste_sign:
+          type: string
+          enum: [positivo, negativo]
+          description: (opcional) para tipo 'ajuste' - indica si el ajuste incrementa o decrementa stock (default: positivo)
+        id_usuario:
+          type: integer
+          description: (opcional) recomendado obtener desde el token JWT (bearer)
+    MovimientoResponse:
+      type: object
+      properties:
+        id_movimiento:
+          type: integer
+        id_producto:
+          type: integer
+        cantidad:
+          type: number
+        tipo:
+          type: string
+        fecha:
+          type: string
+          format: date-time
+        id_usuario:
+          type: integer
+        stock_actual_producto:
+          type: number
+          description: Stock total del producto después del movimiento
+
+    # --- Checklists ---
+    ChecklistCreate:
+      type: object
+      required:
+        - fecha
+        - turno
+        - id_usuario
+      properties:
+        fecha:
+          type: string
+          format: date
+          example: "2025-10-07"
+        turno:
+          type: string
+          enum: ["Mañana", "Tarde", "Noche"]
+        id_usuario:
+          type: integer
+          example: 1
+
+    ChecklistItem:
+      type: object
+      properties:
+        id_item:
+          type: integer
+        descripcion:
+          type: string
+        resultado:
+          type: string
+          enum: ["pendiente","ok","no_ok","na"]
+        observacion:
+          type: string
+
+    ChecklistResponse:
+      type: object
+      properties:
+        id_checklist:
+          type: integer
+        fecha:
+          type: string
+        turno:
+          type: string
+        id_usuario:
+          type: integer
+        estado:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChecklistItem'
+
+    ChecklistUpdate:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - id_item
+              - resultado
+            properties:
+              id_item:
+                type: integer
+              resultado:
+                type: string
+                enum: ["ok","no_ok","na"]
+              observacion:
+                type: string
 
 paths:
 
-  ###########################
-  ## 🔐 AUTH
-  ###########################
+  # --------------------
+  # AUTH
+  # --------------------
   /api/auth/register:
     post:
       tags: [Auth]
@@ -35,23 +289,12 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - nombre
-                - email
-                - password
-              properties:
-                nombre:
-                  type: string
-                email:
-                  type: string
-                password:
-                  type: string
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
-        201:
+        '201':
           description: Usuario registrado exitosamente
-        400:
-          description: Error en la solicitud
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/auth/login:
     post:
@@ -62,61 +305,48 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - email
-                - password
-              properties:
-                email:
-                  type: string
-                password:
-                  type: string
+              $ref: '#/components/schemas/LoginRequest'
       responses:
-        200:
+        '200':
           description: Inicio de sesión exitoso
-        401:
+        '401':
           description: Credenciales inválidas
 
-  ###########################
-  ## 🏭 PROVEEDORES
-  ###########################
+  # --------------------
+  # PROVEEDORES
+  # --------------------
   /api/proveedores:
     get:
       tags: [Proveedores]
       summary: Listar todos los proveedores
+      security:
+        - bearerAuth: []
       responses:
-        200:
+        '200':
           description: Lista de proveedores obtenida correctamente
     post:
       tags: [Proveedores]
       summary: Crear un nuevo proveedor
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - nombre
-              properties:
-                nombre:
-                  type: string
-                contacto:
-                  type: string
-                telefono:
-                  type: string
-                email:
-                  type: string
+              $ref: '#/components/schemas/Proveedor'
       responses:
-        201:
+        '201':
           description: Proveedor creado
-        400:
-          description: Error de validación
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/proveedores/{id}:
     put:
       tags: [Proveedores]
       summary: Actualizar proveedor
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -129,22 +359,17 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                nombre:
-                  type: string
-                contacto:
-                  type: string
-                telefono:
-                  type: string
-                email:
-                  type: string
+              $ref: '#/components/schemas/Proveedor'
       responses:
-        200:
+        '200':
           description: Proveedor actualizado
+        '400':
+          $ref: '#/components/responses/BadRequest'
     delete:
       tags: [Proveedores]
       summary: Eliminar proveedor
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -153,52 +378,48 @@ paths:
           required: true
           description: ID del proveedor
       responses:
-        200:
+        '200':
           description: Proveedor eliminado
+        '404':
+          $ref: '#/components/responses/NotFound'
 
-  ###########################
-  ## 📦 PRODUCTOS
-  ###########################
+  # --------------------
+  # PRODUCTOS
+  # --------------------
   /api/productos:
     get:
       tags: [Productos]
       summary: Listar todos los productos
       responses:
-        200:
+        '200':
           description: Lista de productos obtenida correctamente
     post:
       tags: [Productos]
       summary: Crear un nuevo producto
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - nombre
-                - codigo
-              properties:
-                nombre:
-                  type: string
-                codigo:
-                  type: string
-                categoria:
-                  type: string
-                unidad_medida:
-                  type: string
-                id_proveedor:
-                  type: integer
+              $ref: '#/components/schemas/ProductoCreate'
       responses:
-        201:
+        '201':
           description: Producto creado
-        400:
-          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/productos/{id}:
     put:
       tags: [Productos]
       summary: Actualizar producto
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -222,12 +443,18 @@ paths:
                   type: string
                 id_proveedor:
                   type: integer
+                stock_minimo:
+                  type: number
       responses:
-        200:
+        '200':
           description: Producto actualizado
+        '400':
+          $ref: '#/components/responses/BadRequest'
     delete:
       tags: [Productos]
       summary: Eliminar producto
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -235,22 +462,24 @@ paths:
             type: integer
           required: true
       responses:
-        200:
+        '200':
           description: Producto eliminado
+        '404':
+          $ref: '#/components/responses/NotFound'
 
-  ###########################
-  ## 📊 INVENTARIO
-  ###########################
+  # --------------------
+  # INVENTARIO
+  # --------------------
   /api/inventario:
     get:
       tags: [Inventario]
-      summary: Listar inventario
+      summary: Listar inventario por lotes
       responses:
         200:
-          description: Lista de inventario
+          description: Lista de inventario obtenida correctamente
     post:
       tags: [Inventario]
-      summary: Crear inventario inicial
+      summary: Crear nuevo lote de inventario
       requestBody:
         required: true
         content:
@@ -260,77 +489,80 @@ paths:
               required:
                 - id_producto
                 - stock_actual
+                - id_usuario
                 - fecha_caducidad
               properties:
                 id_producto:
                   type: integer
-                  description: ID del producto asociado al inventario
+                  description: ID del producto asociado
                 stock_actual:
                   type: number
-                  description: Cantidad actual de stock del producto
-                stock_minimo:
-                  type: number
-                  description: Nivel mínimo de stock antes de generar alerta
+                  description: Cantidad de este lote
+                id_usuario:
+                  type: integer
+                  description: ID del usuario que registra el lote (trazabilidad)
                 fecha_caducidad:
                   type: string
                   format: date
-                  description: Fecha de caducidad del producto en inventario
+                  example: "2025-06-15"
+                  description: Fecha de caducidad del lote (YYYY-MM-DD)
       responses:
         201:
-          description: Inventario creado exitosamente
+          description: Lote de inventario creado y movimiento de entrada registrado
         400:
           description: Error de validación o datos inválidos
 
   /api/inventario/{id}:
     put:
       tags: [Inventario]
-      summary: Actualizar inventario por ID
+      summary: Actualizar lote de inventario por ID
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: integer
-          description: ID del registro de inventario a actualizar
+          description: ID del lote de inventario a actualizar
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - id_usuario
               properties:
                 stock_actual:
                   type: number
-                  description: Nueva cantidad de stock actual
-                stock_minimo:
-                  type: number
-                  description: Nuevo valor de stock mínimo
                 fecha_caducidad:
                   type: string
                   format: date
-                  description: Nueva fecha de caducidad
+                id_usuario:
+                  type: integer
+                  description: ID del usuario que realiza la actualización
       responses:
         200:
-          description: Inventario actualizado exitosamente
+          description: Lote de inventario actualizado
         400:
-          description: Error de validación o datos inválidos
+          description: Error de validación
+
     delete:
       tags: [Inventario]
-      summary: Eliminar inventario por ID
+      summary: Eliminar lote de inventario por ID
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: integer
-          description: ID del registro de inventario a eliminar
+          description: ID del lote de inventario a eliminar
       responses:
         200:
-          description: Inventario eliminado exitosamente
+          description: Lote de inventario eliminado
 
-  ###########################
-  ## 🔄 MOVIMIENTOS
-  ###########################
+  # --------------------
+  # MOVIMIENTOS
+  # --------------------
   /api/movimientos:
     get:
       tags: [Movimientos]
@@ -338,9 +570,13 @@ paths:
       responses:
         200:
           description: Lista de movimientos obtenida correctamente
+
     post:
       tags: [Movimientos]
       summary: Crear un movimiento de insumo
+      description: |
+        Registra un movimiento de insumo. Para salidas, el sistema usa FIFO automáticamente
+        descontando de los lotes más antiguos primero. No es necesario indicar lotes manualmente.
       requestBody:
         required: true
         content:
@@ -351,16 +587,125 @@ paths:
                 - id_producto
                 - tipo
                 - cantidad
+                - id_usuario
               properties:
                 id_producto:
                   type: integer
+                  description: ID del producto asociado
                 tipo:
                   type: string
-                  enum: [entrada, salida]
+                  enum: [entrada, salida, ajuste]
+                  description: Tipo de movimiento
                 cantidad:
                   type: number
+                  description: Cantidad del movimiento (si es salida, se descuentan los lotes más antiguos primero)
+                id_usuario:
+                  type: integer
+                  description: ID del usuario que realiza el movimiento
       responses:
         201:
-          description: Movimiento registrado
+          description: Movimiento registrado correctamente usando FIFO
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Movimiento registrado usando FIFO"
+                  stock_actual_producto:
+                    type: number
+                    example: 120
         400:
           description: Error de validación o stock insuficiente
+        500:
+          description: Error interno del servidor
+
+  ###########################
+  ## ✅ CHECKLIST
+  ###########################
+  /api/checklists:
+    post:
+      tags: [Checklist]
+      summary: Crear un nuevo checklist (ítems predefinidos)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChecklistCreate'
+      responses:
+        '201':
+          description: Checklist creado con ítems predefinidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChecklistResponse'
+        '500':
+          description: Error interno del servidor
+
+    get:
+      tags: [Checklist]
+      summary: Listar todos los checklists
+      responses:
+        '200':
+          description: Lista de checklists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChecklistResponse'
+
+  /api/checklists/{id}/items:
+    get:
+      tags: [Checklist]
+      summary: Listar los ítems de un checklist
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID del checklist
+      responses:
+        '200':
+          description: Lista de ítems
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChecklistItem'
+
+  /api/checklists/{id}:
+    put:
+      tags: [Checklist]
+      summary: Actualizar resultados de un checklist
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID del checklist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChecklistUpdate'
+      responses:
+        '200':
+          description: Checklist actualizado correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  estado:
+                    type: string
+        '500':
+          description: Error interno del servidor

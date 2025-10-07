@@ -3,14 +3,13 @@ import { validationResult } from 'express-validator';
 
 // Crear producto
 export const crearProducto = async (req, res) => {
-    // Validación
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
 
   try {
-    const { nombre, codigo, categoria, unidad_medida, id_proveedor } = req.body;
+    const { nombre, codigo, categoria, unidad_medida, id_proveedor, stock_minimo = 0 } = req.body;
 
     // Verificar duplicado por nombre o código
     const exist = await pool.query(
@@ -22,8 +21,10 @@ export const crearProducto = async (req, res) => {
     }
 
     const result = await pool.query(
-      'INSERT INTO productos (nombre, codigo, categoria, unidad_medida, id_proveedor) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [nombre, codigo, categoria, unidad_medida, id_proveedor]
+      `INSERT INTO productos 
+       (nombre, codigo, categoria, unidad_medida, id_proveedor, stock_actual, stock_minimo) 
+       VALUES ($1, $2, $3, $4, $5, 0, $6) RETURNING *`,
+      [nombre, codigo, categoria, unidad_medida, id_proveedor, stock_minimo]
     );
 
     res.status(201).json({ message: 'Producto creado', producto: result.rows[0] });
@@ -51,19 +52,20 @@ export const listarProductos = async (req, res) => {
 
 // Actualizar producto
 export const actualizarProducto = async (req, res) => {
-    // Validación
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
 
   try {
     const { id } = req.params;
-    const { nombre, codigo, categoria, unidad_medida, id_proveedor } = req.body;
+    const { nombre, codigo, categoria, unidad_medida, id_proveedor, stock_minimo } = req.body;
 
     const result = await pool.query(
-      'UPDATE productos SET nombre=$1, codigo=$2, categoria=$3, unidad_medida=$4, id_proveedor=$5 WHERE id_producto=$6 RETURNING *',
-      [nombre, codigo, categoria, unidad_medida, id_proveedor, id]
+      `UPDATE productos 
+       SET nombre=$1, codigo=$2, categoria=$3, unidad_medida=$4, id_proveedor=$5, stock_minimo=$6
+       WHERE id_producto=$7 RETURNING *`,
+      [nombre, codigo, categoria, unidad_medida, id_proveedor, stock_minimo, id]
     );
 
     res.status(200).json({ message: 'Producto actualizado', producto: result.rows[0] });
@@ -77,8 +79,12 @@ export const actualizarProducto = async (req, res) => {
 export const eliminarProducto = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Antes de eliminar el producto, eliminar todos los lotes en inventario
+    await pool.query('DELETE FROM inventario WHERE id_producto=$1', [id]);
     await pool.query('DELETE FROM productos WHERE id_producto=$1', [id]);
-    res.status(200).json({ message: 'Producto eliminado' });
+
+    res.status(200).json({ message: 'Producto y sus lotes eliminados' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al eliminar producto' });
