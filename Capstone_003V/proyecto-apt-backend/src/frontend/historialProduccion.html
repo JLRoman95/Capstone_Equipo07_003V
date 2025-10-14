@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Historial de Producción | PCC2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+
+  <!-- Barra superior -->
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold text-gray-800">Historial de Producción de Alimentos</h1>
+  </header>
+
+  <main class="flex-grow p-6">
+    <!-- Botón de volver (estilo unificado) -->
+    <div class="mb-4">
+      <button onclick="window.history.back()" 
+        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2">
+        ← Volver
+      </button>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow-md overflow-x-auto">
+      <div id="produccionesContainer"></div>
+    </div>
+  </main>
+
+  <script>
+    const API_URL = 'http://localhost:4000/api';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Debes iniciar sesión.');
+        window.location.href = '/login.html';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/produccion`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Error al obtener el historial de producción');
+
+        const data = await res.json();
+
+        // Agrupar productos por id_produccion
+        const produccionesMap = {};
+        data.forEach(item => {
+          if (!produccionesMap[item.id_produccion]) {
+            produccionesMap[item.id_produccion] = {
+              fecha: item.fecha,
+              responsable: item.responsable,
+              turno: item.turno,
+              productos: []
+            };
+          }
+          produccionesMap[item.id_produccion].productos.push({
+            nombre: item.producto,
+            cantidad: item.cantidad,
+            temp_coccion: item.temp_coccion,
+            hora: item.hora,
+            observaciones: item.observaciones
+          });
+        });
+
+        // Ordenar por fecha descendente
+        const produccionesOrdenadas = Object.entries(produccionesMap)
+          .sort((a, b) => new Date(b[1].fecha) - new Date(a[1].fecha));
+
+        const container = document.getElementById('produccionesContainer');
+        container.innerHTML = '';
+
+        produccionesOrdenadas.forEach(([id, prod]) => {
+          const prodDiv = document.createElement('div');
+          prodDiv.className = 'border rounded-lg mb-4 overflow-hidden';
+
+          // Resumen de producción
+          const resumen = document.createElement('button');
+          resumen.className = 'w-full bg-gray-200 px-4 py-2 text-left font-semibold hover:bg-gray-300';
+          resumen.textContent = `ID: ${id} | Fecha: ${prod.fecha} | Responsable: ${prod.responsable} | Turno: ${prod.turno}`;
+          resumen.onclick = () => detalles.classList.toggle('hidden');
+
+          // Detalles de productos
+          const detalles = document.createElement('div');
+          detalles.className = 'hidden bg-gray-50 p-4';
+
+          const table = document.createElement('table');
+          table.className = 'w-full text-sm border border-gray-300';
+          const thead = document.createElement('thead');
+          thead.innerHTML = `
+            <tr class="bg-gray-100">
+              <th class="p-2 border">Producto</th>
+              <th class="p-2 border">Cantidad</th>
+              <th class="p-2 border">Temp. Cocción</th>
+              <th class="p-2 border">Hora</th>
+              <th class="p-2 border">Observaciones</th>
+            </tr>
+          `;
+          const tbody = document.createElement('tbody');
+
+          prod.productos.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-200';
+            tr.innerHTML = `
+              <td class="p-2 border">${p.nombre}</td>
+              <td class="p-2 border">${p.cantidad}</td>
+              <td class="p-2 border">${p.temp_coccion ?? ''}</td>
+              <td class="p-2 border">${p.hora ?? ''}</td>
+              <td class="p-2 border">${p.observaciones ?? ''}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+
+          table.appendChild(thead);
+          table.appendChild(tbody);
+          detalles.appendChild(table);
+
+          prodDiv.appendChild(resumen);
+          prodDiv.appendChild(detalles);
+          container.appendChild(prodDiv);
+        });
+
+      } catch (err) {
+        console.error(err);
+        alert('❌ Error al cargar el historial de producción.');
+      }
+    });
+  </script>
+</body>
+</html>

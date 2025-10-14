@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Iniciar Sesión | APT</title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0077b6, #48cae4);
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .login-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      padding: 40px;
+      width: 350px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #023e8a;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+    }
+
+    button {
+      width: 100%;
+      background: #0077b6;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+      transition: background 0.2s ease;
+    }
+
+    button:hover {
+      background: #023e8a;
+    }
+
+    .error {
+      color: red;
+      font-size: 14px;
+      margin-top: 10px;
+      min-height: 18px;
+    }
+
+    .footer {
+      margin-top: 20px;
+      font-size: 13px;
+      color: #555;
+    }
+
+    .footer a {
+      color: #0077b6;
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h1>Iniciar Sesión</h1>
+    <input type="email" id="email" placeholder="Correo electrónico" required />
+    <input type="password" id="password" placeholder="Contraseña" required />
+    <button id="btnLogin">Ingresar</button>
+    <div class="error" id="mensajeError"></div>
+    <div class="footer">Sistema APT © 2025</div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:4000/api/auth/login';
+
+    document.getElementById('btnLogin').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const mensajeError = document.getElementById('mensajeError');
+      mensajeError.textContent = '';
+
+      if (!email || !password) {
+        mensajeError.textContent = 'Por favor completa todos los campos.';
+        return;
+      }
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          mensajeError.textContent = data.error || 'Credenciales incorrectas.';
+          return;
+        }
+
+        // ✅ Estructura esperada desde tu authController:
+        // {
+        //   message: 'Inicio de sesión exitoso',
+        //   token,
+        //   user: { id, nombre, email, rol }
+        // }
+
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('usuario', JSON.stringify(data.user));
+
+        // Redirige al dashboard o página principal
+        window.location.href = './index.html';
+      } catch (error) {
+        console.error('Error al iniciar sesión:', error);
+        mensajeError.textContent = 'Error de conexión con el servidor.';
+      }
+    });
+
+    // Si ya está logueado, redirigir automáticamente
+    if (localStorage.getItem('token')) {
+      window.location.href = './index.html';
+    }
+  </script>
+</body>
+</html>

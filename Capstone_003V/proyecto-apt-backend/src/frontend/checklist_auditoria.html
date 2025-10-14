@@ -14,9 +14,28 @@
     .detalle-btn { cursor: pointer; color: blue; text-decoration: underline; }
     .items-table { margin-top: 10px; width: 95%; border: 1px solid #ddd; }
     .hidden { display: none; }
+
+    /* Estilo del botón de volver */
+    .back-btn {
+      display: inline-block;
+      background-color: #007BFF;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .back-btn:hover {
+      background-color: #0056b3;
+    }
   </style>
 </head>
 <body>
+  <button class="back-btn" onclick="window.history.back()">← Volver</button>
   <h1>Auditoría de Checklists</h1>
 
   <table id="checklists-table">

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Alertas - APT</title>
+  <style>
+    body{font-family:Arial;margin:20px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #ccc;padding:8px;text-align:left}
+    th{background:#333;color:#fff}
+    .btn{padding:6px 10px;margin-right:6px;cursor:pointer}
+    .pendiente{background:#fff3cd}
+    .resuelta{background:#d4edda}
+    .ignoradas{background:#f8d7da}
+    .volver{padding:6px 12px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-bottom:12px;}
+    .volver:hover{background:#0069d9;}
+  </style>
+</head>
+<body>
+  <!-- Botón Volver -->
+  <button class="volver" onclick="volver()">← Volver</button>
+
+  <h1>Panel de Alertas</h1>
+
+  <label>Tipo:
+    <select id="filterTipo">
+      <option value="">Todas</option>
+      <option value="stock_bajo">Stock bajo</option>
+      <option value="temperatura">Temperatura</option>
+      <option value="checklist_incompleto">Checklist incompleto</option>
+    </select>
+  </label>
+
+  <label>Estado:
+    <select id="filterEstado">
+      <option value="">Todos</option>
+      <option value="pendiente">Pendiente</option>
+      <option value="resuelta">Resuelta</option>
+      <option value="ignoradas">Ignoradas</option>
+    </select>
+  </label>
+
+  <button onclick="cargarAlertas()">Aplicar filtros</button>
+
+  <table id="tablaAlertas" style="margin-top:12px">
+    <thead>
+      <tr><th>ID</th><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Usuario</th><th>Estado</th><th>Acciones</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const API = 'http://localhost:4000/api/alertas';
+
+    function volver() {
+      window.location.href = 'index.html'; // Cambia la ruta si tu página principal es distinta
+    }
+
+    async function cargarAlertas() {
+      const tipo = document.getElementById('filterTipo').value;
+      const estado = document.getElementById('filterEstado').value;
+      const q = new URLSearchParams();
+      if (tipo) q.set('tipo', tipo);
+      if (estado) q.set('estado', estado);
+
+      const res = await fetch(API + (q.toString() ? ('?' + q.toString()) : ''), {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      renderTable(data);
+    }
+
+    function renderTable(data) {
+      const tbody = document.querySelector('#tablaAlertas tbody');
+      tbody.innerHTML = '';
+      data.forEach(a => {
+        const tr = document.createElement('tr');
+        tr.className = a.estado === 'pendiente' ? 'pendiente' : (a.estado === 'resuelta' ? 'resuelta' : 'ignoradas');
+        tr.innerHTML = `
+          <td>${a.id_alerta}</td>
+          <td>${new Date(a.fecha).toLocaleString()}</td>
+          <td>${a.tipo}</td>
+          <td>${a.descripcion}</td>
+          <td>${a.nombre_usuario || (a.id_usuario || '')}</td>
+          <td>${a.estado}</td>
+          <td>
+            ${a.estado === 'pendiente' ? `<button class="btn" onclick="cambiarEstado(${a.id_alerta}, 'resuelta')">Resolver</button>
+                                      <button class="btn" onclick="cambiarEstado(${a.id_alerta}, 'ignoradas')">Ignorar</button>` : ''}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function cambiarEstado(id, estado) {
+      const res = await fetch(`${API}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado })
+      });
+      if (res.ok) {
+        alert('Estado actualizado');
+        cargarAlertas();
+      } else {
+        const err = await res.json();
+        alert('Error: ' + (err.error || ''));
+      }
+    }
+
+    // carga inicial
+    cargarAlertas();
+  </script>
+</body>
+</html>

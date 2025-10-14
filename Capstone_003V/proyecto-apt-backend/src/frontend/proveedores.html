@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Proveedores APT</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f0f0f0; }
+    input { padding: 5px; margin: 5px; }
+    button { padding: 5px 10px; margin: 5px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Gestión de Proveedores</h1>
+
+  <h2>Agregar Proveedor</h2>
+  <form id="form-proveedor">
+    <label>Nombre: <input type="text" id="nombre" required></label>
+    <label>Contacto: <input type="text" id="contacto" required></label>
+    <label>Teléfono: <input type="text" id="telefono" required></label>
+    <label>Email: <input type="email" id="email" required></label>
+    <button type="submit">Agregar</button>
+  </form>
+
+  <h2>Lista de Proveedores</h2>
+  <table id="tabla-proveedores">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nombre</th>
+        <th>Contacto</th>
+        <th>Teléfono</th>
+        <th>Email</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+const API_BASE = 'http://localhost:4000/api';
+
+// Cargar proveedores
+async function cargarProveedores() {
+  const res = await fetch(`${API_BASE}/proveedores`);
+  const proveedores = await res.json();
+  const tbody = document.querySelector('#tabla-proveedores tbody');
+  tbody.innerHTML = '';
+  proveedores.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.id_proveedor}</td>
+      <td>${p.nombre}</td>
+      <td>${p.contacto}</td>
+      <td>${p.telefono}</td>
+      <td>${p.email}</td>
+      <td>
+        <button onclick="editarProveedor(${p.id_proveedor}, '${p.nombre}', '${p.contacto}', '${p.telefono}', '${p.email}')">Editar</button>
+        <button onclick="eliminarProveedor(${p.id_proveedor})">Eliminar</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Agregar proveedor
+document.getElementById('form-proveedor').addEventListener('submit', async e => {
+  e.preventDefault();
+  const data = {
+    nombre: document.getElementById('nombre').value,
+    contacto: document.getElementById('contacto').value,
+    telefono: document.getElementById('telefono').value,
+    email: document.getElementById('email').value
+  };
+  const res = await fetch(`${API_BASE}/proveedores`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (res.ok) {
+    alert('Proveedor agregado');
+    document.getElementById('form-proveedor').reset();
+    cargarProveedores();
+  } else {
+    const err = await res.json();
+    alert('Error: ' + (err.error || JSON.stringify(err)));
+  }
+});
+
+// Editar proveedor
+async function editarProveedor(id, nombre, contacto, telefono, email) {
+  const nuevoNombre = prompt('Nombre:', nombre);
+  if (!nuevoNombre) return;
+  const nuevoContacto = prompt('Contacto:', contacto);
+  if (!nuevoContacto) return;
+  const nuevoTelefono = prompt('Teléfono:', telefono);
+  if (!nuevoTelefono) return;
+  const nuevoEmail = prompt('Email:', email);
+  if (!nuevoEmail) return;
+
+  const res = await fetch(`${API_BASE}/proveedores/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nombre: nuevoNombre,
+      contacto: nuevoContacto,
+      telefono: nuevoTelefono,
+      email: nuevoEmail
+    })
+  });
+  if (res.ok) {
+    alert('Proveedor actualizado');
+    cargarProveedores();
+  } else {
+    const err = await res.json();
+    alert('Error: ' + (err.error || JSON.stringify(err)));
+  }
+}
+
+// Eliminar proveedor
+async function eliminarProveedor(id) {
+  if (!confirm('¿Eliminar este proveedor?')) return;
+  const res = await fetch(`${API_BASE}/proveedores/${id}`, { method: 'DELETE' });
+  if (res.ok) {
+    alert('Proveedor eliminado');
+    cargarProveedores();
+  } else {
+    const err = await res.json();
+    alert('Error: ' + (err.error || JSON.stringify(err)));
+  }
+}
+
+// Inicializar
+cargarProveedores();
+</script>
+</body>
+</html>

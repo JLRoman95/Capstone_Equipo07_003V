@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 20px; }
+  h1 { text-align: center; color: #333; margin-bottom: 20px; }
+  .botones-top { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  button { padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+
+  .producto-card {
+    background: #fff;
+    margin: 10px 0;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+
+  .producto-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    cursor: pointer;
+  }
+
+  .producto-info { display: flex; flex-direction: column; flex: 1; min-width: 200px; }
+  .producto-datos { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 120px; }
+  .low-stock { color: red; font-weight: bold; }
+  .lotes { display: none; margin-top: 15px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid #ccc; text-align: left; }
+  th { background: #eee; }
+
+  /* Modal */
+  .modal { display: none; position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+  .modal .content { background: #fff; padding: 20px; border-radius: 8px; width: 300px; }
+  .modal input, .modal select { width: 100%; padding: 6px; margin-top: 10px; }
+
+</style>
+</head>
+<body>
+<div class="botones-top">
+  <button onclick="window.location.href='index.html'">← Volver</button>
+  <button onclick="abrirModalProducto()">+ Agregar Producto</button>
+</div>
+
+<h1>Inventario</h1>
+<div id="productosContainer"></div>
+
+<!-- Modal Stock Mínimo -->
+<div id="modalStock" class="modal">
+  <div class="content">
+    <h3>Editar Stock Mínimo</h3>
+    <label id="modalProductName"></label>
+    <input type="number" id="modalStockMin" min="0" />
+    <button onclick="guardarStockMin()">Guardar</button>
+    <button onclick="cerrarModalStock()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal Agregar Producto -->
+<div id="modalProducto" class="modal">
+  <div class="content">
+    <h3>Agregar Producto</h3>
+    <input type="text" id="nuevoNombre" placeholder="Nombre" />
+    <input type="text" id="nuevoCodigo" placeholder="Código" />
+    <input type="text" id="nuevaCategoria" placeholder="Categoría" />
+    <input type="text" id="nuevaUnidad" placeholder="Unidad de medida" />
+    <select id="nuevoProveedor"></select>
+    <input type="number" id="nuevoStockMin" placeholder="Stock mínimo" min="0" />
+    <button onclick="crearProducto()">Agregar</button>
+    <button onclick="cerrarModalProducto()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal Agregar Lote -->
+<div id="modalLote" class="modal">
+  <div class="content">
+    <h3>Agregar Lote</h3>
+    <label id="loteProductoName"></label>
+    <input type="number" id="loteCantidad" placeholder="Cantidad" min="1" />
+    <input type="date" id="loteCaducidad" placeholder="Fecha de caducidad" />
+    <button onclick="crearLote()">Agregar</button>
+    <button onclick="cerrarModalLote()">Cancelar</button>
+  </div>
+</div>
+
+<script>
+const API_URL = 'http://localhost:4000/api';
+let productosData = [];
+let inventarioData = [];
+let productoActual = null;
+
+// Traer usuario logueado
+const usuario = JSON.parse(localStorage.getItem('usuario'));
+if(!usuario) {
+  alert('Debe iniciar sesión');
+  window.location.href = './login.html';
+}
+
+// Cargar inventario
+async function cargarInventario() {
+  try {
+    const [productosRes, inventarioRes] = await Promise.all([
+      fetch(`${API_URL}/productos`),
+      fetch(`${API_URL}/inventario`)
+    ]);
+    productosData = await productosRes.json();
+    inventarioData = await inventarioRes.json();
+
+    const container = document.getElementById('productosContainer');
+    container.innerHTML = '';
+
+    productosData.forEach(p => {
+      const misLotes = inventarioData.filter(l => l.id_producto === p.id_producto);
+      const stockTotal = misLotes.reduce((sum, l) => sum + Number(l.stock_actual), 0);
+      const proximaCaducidad = misLotes.length ? misLotes.map(l => l.fecha_caducidad).sort()[0] : '-';
+      const lowStock = stockTotal < p.stock_minimo ? 'low-stock' : '';
+
+      const card = document.createElement('div');
+      card.className = 'producto-card';
+      card.innerHTML = `
+        <div class="producto-header">
+          <div class="producto-info">
+            <span><b>${p.nombre}</b> (${p.codigo})</span>
+            <span>Proveedor: ${p.proveedor_nombre || '-'} | Contacto: ${p.proveedor_contacto || '-'}</span>
+          </div>
+          <div class="producto-datos">
+            <span>Stock: <span class="${lowStock}">${stockTotal}</span></span>
+            <span>Stock mínimo: ${p.stock_minimo}</span>
+            <span>Próxima caducidad: ${proximaCaducidad}</span>
+            <button onclick="abrirModalStockMin(${p.id_producto})">Editar mínimo</button>
+            <button onclick="abrirModalLote(${p.id_producto})">+ Lote</button>
+          </div>
+        </div>
+        <div class="lotes">
+          <table>
+            <thead>
+              <tr><th>Lote</th><th>Cantidad</th><th>Caducidad</th><th>Fecha ingreso</th></tr>
+            </thead>
+            <tbody>
+              ${misLotes.map(l => `
+                <tr>
+                  <td>${l.id_inventario}</td>
+                  <td>${l.stock_actual}</td>
+                  <td>${l.fecha_caducidad || '-'}</td>
+                  <td>${new Date(l.fecha_ingreso).toLocaleDateString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      container.appendChild(card);
+
+      // Toggle lotes
+      card.querySelector('.producto-header').addEventListener('click', e => {
+        if(e.target.tagName === 'BUTTON') return;
+        const lotesDiv = card.querySelector('.lotes');
+        lotesDiv.style.display = lotesDiv.style.display === 'none' ? 'block' : 'none';
+      });
+    });
+  } catch(err) {
+    console.error(err);
+    alert('Error al cargar inventario');
+  }
+}
+
+/* ----- MODALES ----- */
+function abrirModalStockMin(id_producto){
+  productoActual = productosData.find(p => p.id_producto === id_producto);
+  document.getElementById('modalProductName').innerText = productoActual.nombre;
+  document.getElementById('modalStockMin').value = productoActual.stock_minimo;
+  document.getElementById('modalStock').style.display = 'flex';
+}
+function cerrarModalStock(){ document.getElementById('modalStock').style.display='none'; }
+
+function abrirModalProducto(){ 
+  cargarProveedores();
+  document.getElementById('modalProducto').style.display='flex'; 
+}
+function cerrarModalProducto(){ document.getElementById('modalProducto').style.display='none'; }
+
+function abrirModalLote(id_producto){
+  productoActual = productosData.find(p => p.id_producto === id_producto);
+  document.getElementById('loteProductoName').innerText = productoActual.nombre;
+  document.getElementById('modalLote').style.display='flex';
+}
+function cerrarModalLote(){ document.getElementById('modalLote').style.display='none'; }
+
+/* ----- FUNCIONES CRUD ----- */
+async function guardarStockMin(){
+  const nuevoMin = Number(document.getElementById('modalStockMin').value);
+  if(!productoActual) return;
+  try {
+    await fetch(`${API_URL}/productos/${productoActual.id_producto}`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        nombre: productoActual.nombre,
+        codigo: productoActual.codigo,
+        categoria: productoActual.categoria,
+        unidad_medida: productoActual.unidad_medida,
+        id_proveedor: productoActual.id_proveedor,
+        stock_minimo: nuevoMin
+      })
+    });
+    cerrarModalStock();
+    cargarInventario();
+  } catch(err){ console.error(err); alert('No se pudo actualizar stock mínimo'); }
+}
+
+async function cargarProveedores(){
+  const res = await fetch(`${API_URL}/proveedores`);
+  const data = await res.json();
+  const select = document.getElementById('nuevoProveedor');
+  select.innerHTML = '<option value="">Seleccionar proveedor</option>';
+  data.forEach(p => select.innerHTML += `<option value="${p.id_proveedor}">${p.nombre}</option>`);
+}
+
+async function crearProducto(){
+  const nombre = document.getElementById('nuevoNombre').value.trim();
+  const codigo = document.getElementById('nuevoCodigo').value.trim();
+  const categoria = document.getElementById('nuevaCategoria').value.trim();
+  const unidad = document.getElementById('nuevaUnidad').value.trim();
+  const proveedor = document.getElementById('nuevoProveedor').value;
+  const stockMin = Number(document.getElementById('nuevoStockMin').value) || 0;
+
+  if(!nombre || !codigo || !categoria || !unidad || !proveedor){ return alert('Completa todos los campos'); }
+
+  try {
+    await fetch(`${API_URL}/productos`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        nombre, codigo, categoria, unidad_medida: unidad, id_proveedor: proveedor, stock_minimo: stockMin
+      })
+    });
+    cerrarModalProducto();
+    cargarInventario();
+  } catch(err){ console.error(err); alert('No se pudo crear el producto'); }
+}
+
+async function crearLote(){
+  const cantidad = Number(document.getElementById('loteCantidad').value);
+  const fechaCad = document.getElementById('loteCaducidad').value;
+
+  if(!cantidad || cantidad <= 0){ return alert('Cantidad debe ser mayor a 0'); }
+
+  try {
+    await fetch(`${API_URL}/inventario`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        id_producto: productoActual.id_producto,
+        stock_actual: cantidad,
+        fecha_caducidad: fechaCad,
+        id_usuario: usuario.id // ✅ Usuario logueado
+      })
+    });
+    cerrarModalLote();
+    cargarInventario();
+  } catch(err){ console.error(err); alert('No se pudo crear el lote'); }
+}
+
+/* ----- INICIO ----- */
+cargarInventario();
+</script>
+</body>
+</html>

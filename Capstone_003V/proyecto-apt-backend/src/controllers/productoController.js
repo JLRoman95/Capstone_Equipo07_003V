@@ -38,7 +38,7 @@ export const crearProducto = async (req, res) => {
 export const listarProductos = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT p.*, pr.nombre AS proveedor_nombre
+      `SELECT p.*, pr.nombre AS proveedor_nombre, pr.contacto AS proveedor_contacto
        FROM productos p
        LEFT JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
        ORDER BY p.id_producto`

@@ -20,7 +20,7 @@ tags:
     description: Control de inventario de insumos por lotes
   - name: Movimientos
     description: Registro de entradas, salidas y ajustes de insumos
-  - name: Checklists
+  - name: Checklist
     description: Gestión de checklists de limpieza y control de calidad
 
 components:
@@ -204,7 +204,7 @@ components:
           type: number
           description: Stock total del producto después del movimiento
 
-    # --- Checklists ---
+    # --- Checklist ---
     ChecklistCreate:
       type: object
       required:

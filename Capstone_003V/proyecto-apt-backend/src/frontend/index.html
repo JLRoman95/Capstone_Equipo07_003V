@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel Principal | APT</title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0077b6, #48cae4);
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 20px;
+      text-align: center;
+      background: rgba(0, 119, 182, 0.85);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    header .rol {
+      font-size: 16px;
+      color: #d9f7ff;
+      margin-top: 5px;
+    }
+
+    main {
+      flex-grow: 1;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      padding: 40px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    button {
+      background: rgba(255,255,255,0.9);
+      border: none;
+      color: #0077b6;
+      padding: 20px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      width: 100%;
+      height: 100px;
+    }
+
+    button:hover {
+      background: #caf0f8;
+    }
+
+    .logout {
+      background: #ff4d4d;
+      color: white;
+      grid-column: span 2;
+    }
+
+    .logout:hover {
+      background: #d00000;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="nombreUsuario">Bienvenido</h1>
+    <div class="rol" id="rolUsuario"></div>
+  </header>
+
+  <main>
+    <button onclick="irA('inventario.html')">📦 Inventario</button>
+    <button onclick="irA('produccionAlimentos.html')">⚙️ Producción</button>
+    <button onclick="irA('historialProduccion.html')">📊 Historial Producción</button>
+    <button onclick="irA('checklist_auditoria.html')">✅ Checklist Auditoría</button>
+    <button onclick="irA('limpieza.html')">🧹 Checklist Limpieza</button>
+    <button onclick="irA('alertas.html')">🚨 Alertas</button>
+    <button onclick="irA('proveedores.html')">📝 Proveedores</button>
+    <button class="logout" onclick="cerrarSesion()">Cerrar sesión</button>
+  </main>
+
+  <script>
+    const usuario = JSON.parse(localStorage.getItem('usuario'));
+    const token = localStorage.getItem('token');
+
+    if (!usuario || !token) {
+      window.location.href = './login.html';
+    } else {
+      document.getElementById('nombreUsuario').textContent = `Bienvenido, ${usuario.nombre}`;
+      document.getElementById('rolUsuario').textContent = `Rol: ${usuario.rol}`;
+    }
+
+    function irA(pagina) {
+      window.location.href = pagina;
+    }
+
+    function cerrarSesion() {
+      localStorage.clear();
+      window.location.href = './login.html';
+    }
+  </script>
+  
+</body>
+</html>
