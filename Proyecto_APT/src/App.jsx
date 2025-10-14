@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import Login from './Login/Login';
+import Register from './Login/Register';
 
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -16,6 +18,8 @@ const App = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [authInfo, setAuthInfo] = useState(null);
+  const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
     try {
@@ -135,51 +139,83 @@ const App = () => {
     }
   };
 
+  // agrega esta función (por ejemplo, después de los useEffect)
+  const login = async (email, password) => {
+    if (!auth) throw new Error('Auth no inicializado');
+    // Reemplaza <URL_LOGIN> y los campos del body según W1/W2
+    const res = await fetch('<URL_LOGIN>', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Login failed: ${res.status} ${errText}`);
+    }
+
+    const data = await res.json();
+    // Ajusta estas claves según W3
+    const token = data.token || data.accessToken || data.authToken;
+    const role = data.role || data.userRole || data.user?.role;
+
+    if (!token) throw new Error('No se recibió token del servidor');
+
+    // Iniciar sesión en Firebase con el token devuelto por el backend
+    await signInWithCustomToken(auth, token);
+
+    // Guardar rol/token según prefieras (ej. localStorage)
+    if (role) localStorage.setItem('role', role);
+    localStorage.setItem('token', token);
+    // guardar también en estado local para UI
+    setAuthInfo({ token, role, data });
+    // Actualizar userId desde el auth actual
+    setUserId(auth.currentUser?.uid || null);
+    return { token, role, data };
+  };
+
+  // Frontend-only register: guarda usuarios en localStorage con hash SHA-256 y crea token simulado
+  const register = async ({ email, password, role = 'user' }) => {
+    // simple duplication check
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    if (users.find(u => u.email === email)) {
+      throw new Error('Email ya registrado');
+    }
+    // hash password cliente (SHA-256)
+    const pwHash = await (async (pw) => {
+      const enc = new TextEncoder().encode(pw);
+      const digest = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    })(password);
+
+    const user = { id: Date.now(), email, passwordHash: pwHash, role, createdAt: new Date().toISOString() };
+    users.push(user);
+    localStorage.setItem('users', JSON.stringify(users));
+
+    // token simulado
+    const token = btoa(`${email}:${user.id}:${Math.random().toString(36).slice(2)}`);
+    localStorage.setItem('token', token);
+    localStorage.setItem('role', role);
+    setAuthInfo({ token, role, user });
+    return { token, role, user };
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
-        <h1 className="text-3xl font-bold mb-4 text-center text-gray-800">
-          Proyecto Frontend - React
-        </h1>
-        <p className="text-gray-600 text-center mb-6">
-          Tu ID de usuario es: <span className="font-mono bg-gray-200 px-2 py-1 rounded">{userId}</span>
-        </p>
-
-        <div className="flex flex-col space-y-4">
-          <textarea
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            rows="4"
-            placeholder="Escribe un mensaje para guardar en Firestore o para convertir a audio..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-          ></textarea>
-          <div className="flex space-x-4">
-            <button
-              onClick={saveMessage}
-              className="flex-1 bg-blue-500 text-white font-semibold py-3 px-6 rounded-lg shadow hover:bg-blue-600 transition-colors"
-            >
-              Guardar Mensaje en Firestore
-            </button>
-            <button
-              onClick={generateAudio}
-              className="flex-1 bg-green-500 text-white font-semibold py-3 px-6 rounded-lg shadow hover:bg-green-600 transition-colors"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Generando...' : 'Generar Audio'}
-            </button>
-          </div>
-        </div>
-
-        {audioUrl && (
-          <div className="mt-6 text-center">
-            <h3 className="text-xl font-semibold mb-2 text-gray-700">Audio Generado</h3>
-            <audio controls src={audioUrl} className="w-full"></audio>
-          </div>
-        )}
-
-        <div className="mt-8 p-6 bg-gray-50 border border-gray-200 rounded-lg">
-          <h3 className="text-xl font-semibold mb-2 text-gray-700">Mensaje de Firestore</h3>
-          <p className="text-gray-800 break-words">{message}</p>
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div style={{ width: '100%', maxWidth: 560, padding: '1rem', boxSizing: 'border-box' }}>
+        <div className="login-card" style={{ margin: 0, maxWidth: 520 }}>
+          {showRegister ? (
+            <Register onRegister={register} onSuccess={() => setShowRegister(false)} />
+          ) : (
+            <>
+              <Login onLogin={login} onSuccess={(res) => { setAuthInfo(res); }} />
+              <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <button onClick={() => setShowRegister(true)} style={{ background: 'transparent', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}>
+                  ¿No tienes cuenta? Crear una
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
