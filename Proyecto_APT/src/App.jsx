@@ -4,6 +4,7 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import Login from './Login/Login';
 import Register from './Login/Register';
+import { API_BASE } from './api';
 
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -139,65 +140,46 @@ const App = () => {
     }
   };
 
-  // agrega esta función (por ejemplo, después de los useEffect)
+  // login -> llama al backend
   const login = async (email, password) => {
-    if (!auth) throw new Error('Auth no inicializado');
-    // Reemplaza <URL_LOGIN> y los campos del body según W1/W2
-    const res = await fetch('<URL_LOGIN>', {
+    if (!email || !password) throw new Error('Email y contraseña requeridos');
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-
     if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Login failed: ${res.status} ${errText}`);
+      const txt = await res.text().catch(()=>null);
+      throw new Error(txt || `Login failed: ${res.status}`);
     }
-
     const data = await res.json();
-    // Ajusta estas claves según W3
-    const token = data.token || data.accessToken || data.authToken;
-    const role = data.role || data.userRole || data.user?.role;
-
-    if (!token) throw new Error('No se recibió token del servidor');
-
-    // Iniciar sesión en Firebase con el token devuelto por el backend
-    await signInWithCustomToken(auth, token);
-
-    // Guardar rol/token según prefieras (ej. localStorage)
-    if (role) localStorage.setItem('role', role);
-    localStorage.setItem('token', token);
-    // guardar también en estado local para UI
-    setAuthInfo({ token, role, data });
-    // Actualizar userId desde el auth actual
-    setUserId(auth.currentUser?.uid || null);
-    return { token, role, data };
+    // guarda token/role en frontend
+    if (data.token) localStorage.setItem('token', data.token);
+    if (data.role) localStorage.setItem('role', data.role);
+    setAuthInfo({ token: data.token, role: data.role, user: data.user });
+    return data;
   };
 
-  // Frontend-only register: guarda usuarios en localStorage con hash SHA-256 y crea token simulado
+  // register -> llama al backend y opcionalmente hace auto-login
   const register = async ({ email, password, role = 'user' }) => {
-    // simple duplication check
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    if (users.find(u => u.email === email)) {
-      throw new Error('Email ya registrado');
+    if (!email || !password) throw new Error('Email y contraseña requeridos');
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, role })
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(()=>null);
+      throw new Error(payload?.message || `Registro fallido: ${res.status}`);
     }
-    // hash password cliente (SHA-256)
-    const pwHash = await (async (pw) => {
-      const enc = new TextEncoder().encode(pw);
-      const digest = await crypto.subtle.digest('SHA-256', enc);
-      return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-    })(password);
-
-    const user = { id: Date.now(), email, passwordHash: pwHash, role, createdAt: new Date().toISOString() };
-    users.push(user);
-    localStorage.setItem('users', JSON.stringify(users));
-
-    // token simulado
-    const token = btoa(`${email}:${user.id}:${Math.random().toString(36).slice(2)}`);
-    localStorage.setItem('token', token);
-    localStorage.setItem('role', role);
-    setAuthInfo({ token, role, user });
-    return { token, role, user };
+    const payload = await res.json();
+    // opcional: auto-login si el backend devuelve token
+    if (payload.token) {
+      localStorage.setItem('token', payload.token);
+      localStorage.setItem('role', payload.role || role);
+      setAuthInfo({ token: payload.token, role: payload.role || role, user: payload.user });
+    }
+    return payload;
   };
 
   return (

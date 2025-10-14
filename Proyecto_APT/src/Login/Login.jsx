@@ -1,44 +1,23 @@
 import React, { useState } from 'react';
 
-// Asumimos que esta función es pasada desde App.jsx para manejar la lógica de la API
-// Si el user ya tiene la URL de la API, aquí es donde irá la lógica de fetch real.
-
 export default function Login({ onLogin, onSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * Maneja el envío del formulario. Llama a la función onLogin (que debe contener
-   * la lógica del fetch a la API) y maneja el estado de carga y errores.
-   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-
-    // Validación básica
-    if (!email || !password) {
-      setError('Por favor, ingrese email y contraseña.');
-      return;
-    }
-
-    if (!onLogin) {
-      // Este error es para el desarrollador, si olvidó pasar la prop.
-      setError('Error interno: Función de login no proporcionada.');
-      return;
-    }
-
+    if (!onLogin) { setError('Función onLogin no disponible'); return; }
     setLoading(true);
     try {
-      const result = await onLogin(email, password);
+      const result = await onLogin(email.trim(), password);
       setLoading(false);
-      // Llama a la función de éxito (ej. para redirigir o actualizar el estado global)
       if (onSuccess) onSuccess(result);
     } catch (err) {
       setLoading(false);
-      const userMessage = err?.message || 'Credenciales incorrectas o error de conexión. Intente de nuevo.';
-      setError(userMessage);
+      setError(err?.message || 'Error en login');
     }
   };
 
