@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Producción - APT (preview)</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <!-- Si quieres previsualizar estático, link al CSS compilado -->
+    <link rel="stylesheet" href="/src/Modulos/Produccion.css" />
+  </head>
+  <body>
+    <div id="root">
+      <!-- En la app React monta el componente Produccion dentro del root.
+           Este HTML sirve solo como referencia estática. -->
+      <section class="prod-root">
+        <header class="prod-header">
+          <h1>Registro de Producción de Alimentos (PCC2)</h1>
+          <div class="prod-actions">
+            <button class="btn btn-green">Agregar Fila</button>
+            <button class="btn">Exportar JSON</button>
+            <button class="btn btn-ghost">Limpiar</button>
+          </div>
+        </header>
+        <form class="prod-meta">
+          <label>Fecha <input type="date" /></label>
+          <label>Responsable <input type="text" placeholder="Nombre del responsable" /></label>
+          <label>Turno <select><option>Mañana</option><option>Tarde</option><option>Noche</option></select></label>
+        </form>
+        <div class="prod-table-wrap">
+          <table class="prod-table">
+            <thead>
+              <tr><th>Producto</th><th>Cantidad</th><th>Temp. Cocción (°C)</th><th>Tiempo</th><th>Observaciones</th><th>Acción</th></tr>
+            </thead>
+            <tbody>
+              <tr class="empty-row"><td colspan="6">No hay filas. Usa "Agregar Fila" para comenzar.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

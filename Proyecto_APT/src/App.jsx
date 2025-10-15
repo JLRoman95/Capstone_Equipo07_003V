@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import Login from './Login/Login';
+import Register from './Login/Register';
+import { API_BASE } from './api';
 
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -16,6 +19,8 @@ const App = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [authInfo, setAuthInfo] = useState(null);
+  const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
     try {
@@ -135,51 +140,64 @@ const App = () => {
     }
   };
 
+  // login -> llama al backend
+  const login = async (email, password) => {
+    if (!email || !password) throw new Error('Email y contraseña requeridos');
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>null);
+      throw new Error(txt || `Login failed: ${res.status}`);
+    }
+    const data = await res.json();
+    // guarda token/role en frontend
+    if (data.token) localStorage.setItem('token', data.token);
+    if (data.role) localStorage.setItem('role', data.role);
+    setAuthInfo({ token: data.token, role: data.role, user: data.user });
+    return data;
+  };
+
+  // register -> llama al backend y opcionalmente hace auto-login
+  const register = async ({ email, password, role = 'user' }) => {
+    if (!email || !password) throw new Error('Email y contraseña requeridos');
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, role })
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(()=>null);
+      throw new Error(payload?.message || `Registro fallido: ${res.status}`);
+    }
+    const payload = await res.json();
+    // opcional: auto-login si el backend devuelve token
+    if (payload.token) {
+      localStorage.setItem('token', payload.token);
+      localStorage.setItem('role', payload.role || role);
+      setAuthInfo({ token: payload.token, role: payload.role || role, user: payload.user });
+    }
+    return payload;
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
-        <h1 className="text-3xl font-bold mb-4 text-center text-gray-800">
-          Proyecto Frontend - React
-        </h1>
-        <p className="text-gray-600 text-center mb-6">
-          Tu ID de usuario es: <span className="font-mono bg-gray-200 px-2 py-1 rounded">{userId}</span>
-        </p>
-
-        <div className="flex flex-col space-y-4">
-          <textarea
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            rows="4"
-            placeholder="Escribe un mensaje para guardar en Firestore o para convertir a audio..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-          ></textarea>
-          <div className="flex space-x-4">
-            <button
-              onClick={saveMessage}
-              className="flex-1 bg-blue-500 text-white font-semibold py-3 px-6 rounded-lg shadow hover:bg-blue-600 transition-colors"
-            >
-              Guardar Mensaje en Firestore
-            </button>
-            <button
-              onClick={generateAudio}
-              className="flex-1 bg-green-500 text-white font-semibold py-3 px-6 rounded-lg shadow hover:bg-green-600 transition-colors"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Generando...' : 'Generar Audio'}
-            </button>
-          </div>
-        </div>
-
-        {audioUrl && (
-          <div className="mt-6 text-center">
-            <h3 className="text-xl font-semibold mb-2 text-gray-700">Audio Generado</h3>
-            <audio controls src={audioUrl} className="w-full"></audio>
-          </div>
-        )}
-
-        <div className="mt-8 p-6 bg-gray-50 border border-gray-200 rounded-lg">
-          <h3 className="text-xl font-semibold mb-2 text-gray-700">Mensaje de Firestore</h3>
-          <p className="text-gray-800 break-words">{message}</p>
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div style={{ width: '100%', maxWidth: 560, padding: '1rem', boxSizing: 'border-box' }}>
+        <div className="login-card" style={{ margin: 0, maxWidth: 520 }}>
+          {showRegister ? (
+            <Register onRegister={register} onSuccess={() => setShowRegister(false)} />
+          ) : (
+            <>
+              <Login onLogin={login} onSuccess={(res) => { setAuthInfo(res); }} />
+              <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <button onClick={() => setShowRegister(true)} style={{ background: 'transparent', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}>
+                  ¿No tienes cuenta? Crear una
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
