@@ -1,14 +1,14 @@
 import { pool } from '../config/db.js';
 import { validationResult } from 'express-validator';
 
-// 📦 Listar inventario (lotes)
+// 📦 Listar inventario (lotes) - Ordenado por FIFO (First In, First Out)
 export const listarInventario = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT i.*, p.nombre AS producto, p.stock_minimo
+      `SELECT i.*, p.nombre AS producto, p.stock_minimo, p.categoria, p.unidad_medida
        FROM inventario i 
        JOIN productos p ON i.id_producto = p.id_producto
-       ORDER BY i.fecha_ingreso DESC`
+       ORDER BY i.fecha_ingreso ASC, i.fecha_caducidad ASC`
     );
     res.status(200).json(result.rows);
   } catch (err) {
@@ -24,7 +24,8 @@ export const crearInventario = async (req, res) => {
 
   const client = await pool.connect();
   try {
-    const { id_producto, stock_actual, fecha_caducidad, id_usuario } = req.body;
+    const { id_producto, stock_actual, fecha_caducidad } = req.body;
+    const id_usuario = req.user.id; // Obtener del token
     if (stock_actual <= 0) return res.status(400).json({ error: 'Stock debe ser mayor a 0' });
 
     await client.query('BEGIN');
@@ -37,14 +38,7 @@ export const crearInventario = async (req, res) => {
       [id_producto, stock_actual, fecha_caducidad]
     );
 
-    // 2️⃣ Registrar movimiento
-    await client.query(
-      `INSERT INTO movimientos_insumo (id_producto, cantidad, tipo, fecha, id_usuario)
-       VALUES ($1, $2, 'entrada', NOW(), $3)`,
-      [id_producto, stock_actual, id_usuario]
-    );
-
-    // 3️⃣ Recalcular stock total del producto
+    // 2️⃣ Recalcular stock total del producto
     const { rows: totalRows } = await client.query(
       'SELECT SUM(stock_actual) AS total_stock FROM inventario WHERE id_producto=$1',
       [id_producto]
@@ -56,8 +50,7 @@ export const crearInventario = async (req, res) => {
       [total_stock, id_producto]
     );
 
-    // 4️⃣ Verificar alerta de stock bajo
-    await verificarYActualizarAlertasStock(client, id_producto, total_stock, id_usuario);
+    // Las alertas ahora se generan automáticamente en tiempo real
 
     await client.query('COMMIT');
     res.status(201).json({ message: 'Inventario creado', inventario: result.rows[0] });
@@ -78,7 +71,8 @@ export const actualizarInventario = async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { stock_actual, fecha_caducidad, id_usuario } = req.body;
+    const { stock_actual, fecha_caducidad } = req.body;
+    const id_usuario = req.user.id; // Obtener del token
 
     await client.query('BEGIN');
 
@@ -101,21 +95,7 @@ export const actualizarInventario = async (req, res) => {
       [stock_actual, fecha_caducidad, id]
     );
 
-    // 3️⃣ Registrar movimiento si cambia el stock
-    if (cantidadCambio !== 0) {
-      await client.query(
-        `INSERT INTO movimientos_insumo (id_producto, cantidad, tipo, fecha, id_usuario)
-         VALUES ($1, $2, $3, NOW(), $4)`,
-        [
-          lote.id_producto,
-          Math.abs(cantidadCambio),
-          cantidadCambio > 0 ? 'entrada' : 'salida',
-          id_usuario
-        ]
-      );
-    }
-
-    // 4️⃣ Actualizar stock total
+    // 3️⃣ Actualizar stock total
     const { rows: totalRows } = await client.query(
       'SELECT SUM(stock_actual) AS total_stock FROM inventario WHERE id_producto=$1',
       [lote.id_producto]
@@ -126,8 +106,7 @@ export const actualizarInventario = async (req, res) => {
       [total_stock, lote.id_producto]
     );
 
-    // 5️⃣ Revisar alertas de stock bajo
-    await verificarYActualizarAlertasStock(client, lote.id_producto, total_stock, id_usuario);
+    // Las alertas ahora se generan automáticamente en tiempo real
 
     await client.query('COMMIT');
     res.status(200).json({ message: 'Inventario actualizado', inventario: result.rows[0] });
@@ -145,6 +124,7 @@ export const eliminarInventario = async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
+    const id_usuario = req.user?.id;
 
     await client.query('BEGIN');
 
@@ -170,8 +150,7 @@ export const eliminarInventario = async (req, res) => {
       [total_stock, id_producto]
     );
 
-    // Revisar alertas
-    await verificarYActualizarAlertasStock(client, id_producto, total_stock, null);
+    // Las alertas ahora se generan automáticamente en tiempo real
 
     await client.query('COMMIT');
     res.status(200).json({ message: 'Inventario eliminado' });
@@ -184,37 +163,65 @@ export const eliminarInventario = async (req, res) => {
   }
 };
 
-//
-// 🧩 FUNCIÓN AUXILIAR PARA ALERTAS DE STOCK BAJO
-//
-const verificarYActualizarAlertasStock = async (client, id_producto, total_stock, id_usuario) => {
-  // Obtener stock mínimo del producto
-  const { rows: productoRows } = await client.query(
-    'SELECT nombre, stock_minimo FROM productos WHERE id_producto=$1',
-    [id_producto]
-  );
-  if (!productoRows.length) return;
+// La función verificarYActualizarAlertasStock ha sido movida a alertasController.js como verificarStockBajo()
 
-  const { nombre, stock_minimo } = productoRows[0];
-
-  // Si stock < mínimo → crear alerta
-  if (stock_minimo && total_stock < stock_minimo) {
-    await client.query(
-      `INSERT INTO alertas (tipo, descripcion, id_referencia, id_usuario)
-       VALUES ('stock_bajo', $1, $2, $3)`,
-      [
-        `El producto "${nombre}" tiene stock bajo (${total_stock}/${stock_minimo}).`,
-        id_producto,
-        id_usuario
-      ]
-    );
-  } else {
-    // Si ya estaba bajo y se recuperó → marcar resuelta
-    await client.query(
-      `UPDATE alertas 
-       SET estado='resuelta'
-       WHERE tipo='stock_bajo' AND id_referencia=$1 AND estado='pendiente'`,
+// 📋 Obtener inventario por FIFO para un producto específico
+export const obtenerInventarioFIFO = async (req, res) => {
+  try {
+    const { id_producto } = req.params;
+    
+    const result = await pool.query(
+      `SELECT i.*, p.nombre AS producto, p.unidad_medida
+       FROM inventario i 
+       JOIN productos p ON i.id_producto = p.id_producto
+       WHERE i.id_producto = $1 AND i.stock_actual > 0
+       ORDER BY i.fecha_ingreso ASC, i.fecha_caducidad ASC`,
       [id_producto]
     );
+    
+    res.status(200).json({
+      producto_id: id_producto,
+      lotes_disponibles: result.rows,
+      total_lotes: result.rows.length,
+      stock_total: result.rows.reduce((sum, lote) => sum + parseFloat(lote.stock_actual), 0)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener inventario FIFO' });
+  }
+};
+
+// 📦 Obtener próximo lote a usar (FIFO)
+export const obtenerProximoLoteFIFO = async (req, res) => {
+  try {
+    const { id_producto } = req.params;
+    
+    const result = await pool.query(
+      `SELECT i.*, p.nombre AS producto, p.unidad_medida
+       FROM inventario i 
+       JOIN productos p ON i.id_producto = p.id_producto
+       WHERE i.id_producto = $1 AND i.stock_actual > 0
+       ORDER BY i.fecha_ingreso ASC, i.fecha_caducidad ASC
+       LIMIT 1`,
+      [id_producto]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No hay stock disponible para este producto' });
+    }
+    
+    const lote = result.rows[0];
+    const diasEnInventario = Math.floor(
+      (new Date() - new Date(lote.fecha_ingreso)) / (1000 * 60 * 60 * 24)
+    );
+    
+    res.status(200).json({
+      ...lote,
+      dias_en_inventario: diasEnInventario,
+      prioridad: 'USAR PRIMERO - FIFO'
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener próximo lote FIFO' });
   }
 };

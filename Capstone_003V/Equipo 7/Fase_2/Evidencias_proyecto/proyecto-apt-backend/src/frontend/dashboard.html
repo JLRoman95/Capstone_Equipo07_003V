@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - APT</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background-color: #f5f5f5; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .card h3 { color: #333; margin-bottom: 15px; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+    .stat { display: flex; justify-content: space-between; margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+    .btn { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin: 5px; }
+    .btn:hover { background: #0056b3; }
+    .btn-success { background: #28a745; }
+    .btn-warning { background: #ffc107; color: #212529; }
+    .btn-danger { background: #dc3545; }
+    .notification { padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 4px solid #007bff; background: #f8f9fa; }
+    .notification.warning { border-left-color: #ffc107; background: #fff3cd; }
+    .notification.error { border-left-color: #dc3545; background: #f8d7da; }
+    .notification.success { border-left-color: #28a745; background: #d4edda; }
+    .volver { display: inline-block; background: #6c757d; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; margin-bottom: 20px; }
+    .loading { text-align: center; padding: 20px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <a href="index.html" class="volver">← Volver al Menú</a>
+      <h1>Dashboard - Sistema APT</h1>
+      <p>Panel de control con estadísticas y funcionalidades avanzadas</p>
+    </div>
+
+    <div class="dashboard-grid">
+
+      <!-- Estadísticas de Stock -->
+      <div class="card">
+        <h3>📦 Estado del Stock</h3>
+        <div id="stats-stock" class="loading">Cargando...</div>
+        <button class="btn" onclick="descargarReporte('stock', 'json')">📊 Ver Reporte JSON</button>
+        <button class="btn btn-danger" onclick="descargarReporte('stock', 'pdf')">📄 Descargar PDF</button>
+      </div>
+
+      <!-- Alertas del Sistema -->
+      <div class="card">
+        <h3>🚨 Alertas del Sistema</h3>
+        <div id="alertas-sistema" class="loading">Cargando...</div>
+        <button class="btn btn-warning" onclick="window.location.href='alertas.html'">🔍 Ver Todas las Alertas</button>
+        <button class="btn btn-danger" onclick="descargarReporte('alertas', 'pdf')">📄 Reporte PDF Alertas</button>
+      </div>
+
+      <!-- Resumen de Producción -->
+      <div class="card">
+        <h3>⚙️ Producción Reciente</h3>
+        <div id="stats-produccion" class="loading">Cargando...</div>
+        <button class="btn btn-success" onclick="window.location.href='historialProduccion.html'">� Ver Historial Completo</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:4000/api';
+    const token = localStorage.getItem('token');
+    const usuario = JSON.parse(localStorage.getItem('usuario'));
+
+    if (!token || !usuario) {
+      alert('Debes iniciar sesión');
+      window.location.href = 'login.html';
+    }
+
+    // Helper para peticiones autenticadas
+    async function fetchWithAuth(url, options = {}) {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers
+      };
+
+      const response = await fetch(url, { ...options, headers });
+      
+      if (response.status === 401) {
+        alert('Sesión expirada');
+        localStorage.clear();
+        window.location.href = 'login.html';
+        return null;
+      }
+
+      if (response.status === 403) {
+        const errorData = await response.json().catch(() => ({ error: 'Sin permisos' }));
+        alert(errorData.error || 'No tienes permisos para realizar esta acción');
+        return response; // No cerrar sesión, solo mostrar error
+      }
+
+      return response;
+    }
+
+    // Cargar estadísticas de checklists
+    async function cargarStatsChecklists() {
+      try {
+        const response = await fetchWithAuth(`${API_BASE}/reportes/checklists`);
+        if (!response) return;
+
+        const data = await response.json();
+        const container = document.getElementById('stats-checklists');
+        
+        container.innerHTML = `
+          <div class="stat">
+            <span>Total Checklists:</span>
+            <strong>${data.resumen.total_checklists}</strong>
+          </div>
+          <div class="stat">
+            <span>Checklists Completos:</span>
+            <strong style="color: #28a745">${data.resumen.completos}</strong>
+          </div>
+          <div class="stat">
+            <span>Última Revisión:</span>
+            <strong style="color: #007bff">${data.por_fecha && data.por_fecha.length > 0 ? new Date(data.por_fecha[0].fecha).toLocaleDateString() : 'N/A'}</strong>
+          </div>
+          <div class="stat">
+            <span>Items OK:</span>
+            <strong style="color: #28a745">${data.resumen.items_ok || 0}</strong>
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById('stats-checklists').innerHTML = '<div style="color: red">Error al cargar estadísticas</div>';
+      }
+    }
+
+    // Cargar estadísticas de stock (mejorado con más detalles)
+    async function cargarStatsStock() {
+      try {
+        const response = await fetchWithAuth(`${API_BASE}/reportes/stock`);
+        if (!response) return;
+
+        const data = await response.json();
+        const container = document.getElementById('stats-stock');
+        
+        container.innerHTML = `
+          <div class="stat">
+            <span>Total Productos:</span>
+            <strong>${data.resumen.total_productos}</strong>
+          </div>
+          <div class="stat">
+            <span>Sin Stock:</span>
+            <strong style="color: #dc3545">${data.resumen.sin_stock}</strong>
+          </div>
+          <div class="stat">
+            <span>Stock Bajo:</span>
+            <strong style="color: #ffc107">${data.resumen.stock_bajo}</strong>
+          </div>
+          <div class="stat">
+            <span>Stock Suficiente:</span>
+            <strong style="color: #28a745">${data.resumen.stock_suficiente}</strong>
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById('stats-stock').innerHTML = '<div style="color: red">Error al cargar estadísticas</div>';
+      }
+    }
+
+    // Cargar alertas del sistema en tiempo real
+    async function cargarAlertasSistema() {
+      try {
+        const response = await fetchWithAuth(`${API_BASE}/alertas-automaticas/conteo`);
+        if (!response) return;
+
+        const data = await response.json();
+        const container = document.getElementById('alertas-sistema');
+        
+        const totalAlertas = data.stock_bajo + data.caducidad + data.vencidos + data.sin_stock;
+        
+        if (totalAlertas === 0) {
+          container.innerHTML = `
+            <div class="notification success">
+              ✅ No hay alertas activas - Sistema funcionando correctamente
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div class="stat">
+              <span>Total Alertas:</span>
+              <strong style="color: #dc3545">${totalAlertas}</strong>
+            </div>
+            <div class="stat">
+              <span>Stock Bajo:</span>
+              <strong style="color: #ffc107">${data.stock_bajo}</strong>
+            </div>
+            <div class="stat">
+              <span>Próximos a Caducar:</span>
+              <strong style="color: #ff9800">${data.caducidad}</strong>
+            </div>
+            <div class="stat">
+              <span>Productos Vencidos:</span>
+              <strong style="color: #dc3545">${data.vencidos}</strong>
+            </div>
+            <div class="stat">
+              <span>Sin Stock:</span>
+              <strong style="color: #e91e63">${data.sin_stock}</strong>
+            </div>
+          `;
+        }
+      } catch (err) {
+        document.getElementById('alertas-sistema').innerHTML = '<div style="color: red">Error al cargar alertas</div>';
+      }
+    }
+
+    // Cargar estadísticas de producción reciente
+    async function cargarStatsProduccion() {
+      try {
+        const response = await fetchWithAuth(`${API_BASE}/produccion`);
+        if (!response) return;
+
+        const data = await response.json();
+        const container = document.getElementById('stats-produccion');
+        
+        // Agrupar por fecha para estadísticas
+        const hoy = new Date().toISOString().split('T')[0];
+        const ayer = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        
+        const prodHoy = data.filter(p => p.fecha?.startsWith(hoy));
+        const prodAyer = data.filter(p => p.fecha?.startsWith(ayer));
+        
+        // Obtener últimos registros únicos por id_produccion
+        const ultimasProduccionesIds = [...new Set(data.map(p => p.id_produccion))];
+        const ultimasProducciones = ultimasProduccionesIds.slice(0, 5);
+        
+        container.innerHTML = `
+          <div class="stat">
+            <span>Registros Hoy:</span>
+            <strong style="color: #28a745">${ultimasProduccionesIds.filter(id => 
+              data.find(p => p.id_produccion === id)?.fecha?.startsWith(hoy)
+            ).length}</strong>
+          </div>
+          <div class="stat">
+            <span>Registros Ayer:</span>
+            <strong style="color: #007bff">${ultimasProduccionesIds.filter(id => 
+              data.find(p => p.id_produccion === id)?.fecha?.startsWith(ayer)
+            ).length}</strong>
+          </div>
+          <div class="stat">
+            <span>Total Registros:</span>
+            <strong>${ultimasProduccionesIds.length}</strong>
+          </div>
+          <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+            <small><strong>Últimos registros:</strong></small>
+            ${ultimasProducciones.map(id => {
+              const prod = data.find(p => p.id_produccion === id);
+              return `<div style="font-size: 11px; margin: 2px 0;">ID:${id} - ${prod?.responsable} (${prod?.fecha})</div>`;
+            }).join('')}
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById('stats-produccion').innerHTML = '<div style="color: red">Error al cargar estadísticas</div>';
+      }
+    }
+
+    // Cargar todo al inicializar
+    document.addEventListener('DOMContentLoaded', () => {
+      // Verificar que el usuario tenga permisos para el dashboard
+      if (!['admin', 'auditor'].includes(usuario.rol)) {
+        alert('No tienes permisos para acceder al Dashboard');
+        window.location.href = 'index.html';
+        return;
+      }
+
+      // Cargar todas las estadísticas
+      cargarStatsChecklists();
+      cargarStatsStock();
+      cargarAlertasSistema();
+      cargarStatsProduccion();
+      
+      // Auto-actualizar alertas cada 30 segundos
+      setInterval(cargarAlertasSistema, 30000);
+    });
+
+    // Descargar reportes
+    async function descargarReporte(tipo, formato) {
+      try {
+        const url = `${API_BASE}/reportes/${tipo}?formato=${formato}`;
+        
+        if (formato === 'pdf') {
+          // Para PDF, abrimos en nueva ventana
+          const response = await fetchWithAuth(url);
+          if (!response) return;
+          
+          const blob = await response.blob();
+          const urlBlob = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = urlBlob;
+          a.download = `reporte-${tipo}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(urlBlob);
+        } else {
+          // Para JSON, hacemos fetch con autenticación y mostramos el resultado
+          const response = await fetchWithAuth(url);
+          if (!response) return;
+          
+          const data = await response.json();
+          const newWindow = window.open('', '_blank');
+          newWindow.document.write(`
+            <html>
+              <head>
+                <title>Reporte ${tipo.charAt(0).toUpperCase() + tipo.slice(1)} - APT</title>
+                <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+                  .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                  pre { background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; }
+                  h1 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+                </style>
+              </head>
+              <body>
+                <div class="container">
+                  <h1>📊 Reporte de ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}</h1>
+                  <p><strong>Generado:</strong> ${new Date().toLocaleDateString()}</p>
+                  <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+              </body>
+            </html>
+          `);
+          newWindow.document.close();
+        }
+      } catch (err) {
+        console.error('Error al obtener reporte:', err);
+        alert('Error al generar reporte: ' + (err.message || 'Error desconocido'));
+      }
+    }
+
+    // Cargar todo al inicializar
+    document.addEventListener('DOMContentLoaded', () => {
+      // Verificar que el usuario tenga permisos para el dashboard
+      if (!['admin', 'auditor'].includes(usuario.rol)) {
+        alert('No tienes permisos para acceder al Dashboard');
+        window.location.href = 'index.html';
+        return;
+      }
+
+      // Cargar todas las estadísticas
+      cargarStatsChecklists();
+      cargarStatsStock();
+      cargarAlertasSistema();
+      cargarStatsProduccion();
+      
+      // Auto-actualizar alertas cada 30 segundos
+      setInterval(cargarAlertasSistema, 30000);
+    });
+  </script>
+</body>
+</html>

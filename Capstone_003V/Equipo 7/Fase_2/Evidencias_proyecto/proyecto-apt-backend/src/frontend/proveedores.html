@@ -10,9 +10,23 @@
     th { background-color: #f0f0f0; }
     input { padding: 5px; margin: 5px; }
     button { padding: 5px 10px; margin: 5px; cursor: pointer; }
+    .volver {
+      display: inline-block;
+      background-color: #007BFF;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .volver:hover { background-color: #0056b3; }
   </style>
 </head>
 <body>
+  <button class="volver" onclick="window.location.href='index.html'">← Volver</button>
   <h1>Gestión de Proveedores</h1>
 
   <h2>Agregar Proveedor</h2>
@@ -42,13 +56,53 @@
 <script>
 const API_BASE = 'http://localhost:4000/api';
 
+// Verificar autenticación
+const token = localStorage.getItem('token');
+const usuario = JSON.parse(localStorage.getItem('usuario'));
+if (!token || !usuario) {
+  alert('Debes iniciar sesión');
+  window.location.href = 'login.html';
+}
+
+// Helper para hacer peticiones autenticadas
+async function fetchWithAuth(url, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    ...options.headers
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers
+  });
+
+  if (response.status === 401) {
+    alert('Sesión expirada');
+    localStorage.clear();
+    window.location.href = 'login.html';
+    return;
+  }
+
+  if (response.status === 403) {
+    const errorData = await response.json().catch(() => ({ error: 'Sin permisos' }));
+    alert(errorData.error || 'No tienes permisos para realizar esta acción');
+    return response; // No cerrar sesión, solo mostrar error
+  }
+
+  return response;
+}
+
 // Cargar proveedores
 async function cargarProveedores() {
-  const res = await fetch(`${API_BASE}/proveedores`);
-  const proveedores = await res.json();
-  const tbody = document.querySelector('#tabla-proveedores tbody');
-  tbody.innerHTML = '';
-  proveedores.forEach(p => {
+  try {
+    const res = await fetchWithAuth(`${API_BASE}/proveedores`);
+    if (!res) return;
+    
+    const proveedores = await res.json();
+    const tbody = document.querySelector('#tabla-proveedores tbody');
+    tbody.innerHTML = '';
+    proveedores.forEach(p => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${p.id_proveedor}</td>
@@ -62,73 +116,94 @@ async function cargarProveedores() {
       </td>
     `;
     tbody.appendChild(tr);
-  });
+    });
+  } catch (err) {
+    console.error('Error cargando proveedores:', err);
+    alert('Error al cargar proveedores');
+  }
 }
 
 // Agregar proveedor
 document.getElementById('form-proveedor').addEventListener('submit', async e => {
   e.preventDefault();
-  const data = {
-    nombre: document.getElementById('nombre').value,
-    contacto: document.getElementById('contacto').value,
-    telefono: document.getElementById('telefono').value,
-    email: document.getElementById('email').value
-  };
-  const res = await fetch(`${API_BASE}/proveedores`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
-  if (res.ok) {
-    alert('Proveedor agregado');
-    document.getElementById('form-proveedor').reset();
-    cargarProveedores();
-  } else {
-    const err = await res.json();
-    alert('Error: ' + (err.error || JSON.stringify(err)));
+  try {
+    const data = {
+      nombre: document.getElementById('nombre').value,
+      contacto: document.getElementById('contacto').value,
+      telefono: document.getElementById('telefono').value,
+      email: document.getElementById('email').value
+    };
+    const res = await fetchWithAuth(`${API_BASE}/proveedores`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (!res) return;
+    
+    if (res.ok) {
+      alert('Proveedor agregado');
+      document.getElementById('form-proveedor').reset();
+      cargarProveedores();
+    } else {
+      const err = await res.json();
+      alert('Error: ' + (err.error || JSON.stringify(err)));
+    }
+  } catch (err) {
+    console.error('Error agregando proveedor:', err);
+    alert('Error al agregar proveedor');
   }
-});
-
-// Editar proveedor
+});// Editar proveedor
 async function editarProveedor(id, nombre, contacto, telefono, email) {
-  const nuevoNombre = prompt('Nombre:', nombre);
-  if (!nuevoNombre) return;
-  const nuevoContacto = prompt('Contacto:', contacto);
-  if (!nuevoContacto) return;
-  const nuevoTelefono = prompt('Teléfono:', telefono);
-  if (!nuevoTelefono) return;
-  const nuevoEmail = prompt('Email:', email);
-  if (!nuevoEmail) return;
+  try {
+    const nuevoNombre = prompt('Nombre:', nombre);
+    if (!nuevoNombre) return;
+    const nuevoContacto = prompt('Contacto:', contacto);
+    if (!nuevoContacto) return;
+    const nuevoTelefono = prompt('Teléfono:', telefono);
+    if (!nuevoTelefono) return;
+    const nuevoEmail = prompt('Email:', email);
+    if (!nuevoEmail) return;
 
-  const res = await fetch(`${API_BASE}/proveedores/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      nombre: nuevoNombre,
-      contacto: nuevoContacto,
-      telefono: nuevoTelefono,
-      email: nuevoEmail
-    })
-  });
-  if (res.ok) {
-    alert('Proveedor actualizado');
-    cargarProveedores();
-  } else {
-    const err = await res.json();
-    alert('Error: ' + (err.error || JSON.stringify(err)));
+    const res = await fetchWithAuth(`${API_BASE}/proveedores/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        nombre: nuevoNombre,
+        contacto: nuevoContacto,
+        telefono: nuevoTelefono,
+        email: nuevoEmail
+      })
+    });
+    if (!res) return;
+    
+    if (res.ok) {
+      alert('Proveedor actualizado');
+      cargarProveedores();
+    } else {
+      const err = await res.json();
+      alert('Error: ' + (err.error || JSON.stringify(err)));
+    }
+  } catch (err) {
+    console.error('Error editando proveedor:', err);
+    alert('Error al editar proveedor');
   }
 }
 
 // Eliminar proveedor
 async function eliminarProveedor(id) {
-  if (!confirm('¿Eliminar este proveedor?')) return;
-  const res = await fetch(`${API_BASE}/proveedores/${id}`, { method: 'DELETE' });
-  if (res.ok) {
-    alert('Proveedor eliminado');
-    cargarProveedores();
-  } else {
-    const err = await res.json();
-    alert('Error: ' + (err.error || JSON.stringify(err)));
+  try {
+    if (!confirm('¿Eliminar este proveedor?')) return;
+    const res = await fetchWithAuth(`${API_BASE}/proveedores/${id}`, { method: 'DELETE' });
+    if (!res) return;
+    
+    if (res.ok) {
+      alert('Proveedor eliminado');
+      cargarProveedores();
+    } else {
+      const err = await res.json();
+      alert('Error: ' + (err.error || JSON.stringify(err)));
+    }
+  } catch (err) {
+    console.error('Error eliminando proveedor:', err);
+    alert('Error al eliminar proveedor');
   }
 }
 

@@ -20,3 +20,22 @@ export const verifyToken = (req, res, next) => {
     next();
   });
 };
+
+// Middleware para verificar roles específicos
+export const requireRole = (allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    if (allowedRoles.includes(req.user.rol)) {
+      next();
+    } else {
+      return res.status(403).json({ 
+        error: 'No tienes permisos para acceder a este recurso',
+        required_roles: allowedRoles,
+        user_role: req.user.rol
+      });
+    }
+  };
+};

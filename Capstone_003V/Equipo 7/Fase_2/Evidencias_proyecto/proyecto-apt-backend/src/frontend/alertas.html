@@ -9,106 +9,261 @@
     th,td{border:1px solid #ccc;padding:8px;text-align:left}
     th{background:#333;color:#fff}
     .btn{padding:6px 10px;margin-right:6px;cursor:pointer}
-    .pendiente{background:#fff3cd}
-    .resuelta{background:#d4edda}
-    .ignoradas{background:#f8d7da}
-    .volver{padding:6px 12px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-bottom:12px;}
-    .volver:hover{background:#0069d9;}
+    .volver{
+      display: inline-block;
+      background-color: #007BFF;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .volver:hover{background-color: #0056b3;}
+    .prioridad-critica {
+      background-color: #ffebee;
+      border-left: 4px solid #f44336;
+    }
+    .prioridad-alta {
+      background-color: #fff3e0;
+      border-left: 4px solid #ff9800;
+    }
+    .prioridad-media {
+      background-color: #f3e5f5;
+      border-left: 4px solid #9c27b0;
+    }
+    .prioridad-baja {
+      background-color: #e8f5e8;
+      border-left: 4px solid #4caf50;
+    }
+    .badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .badge-critica {
+      background-color: #f44336;
+      color: white;
+    }
+    .badge-alta {
+      background-color: #ff9800;
+      color: white;
+    }
+    .badge-media {
+      background-color: #9c27b0;
+      color: white;
+    }
+    .badge-baja {
+      background-color: #4caf50;
+      color: white;
+    }
+    .resumen {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .resumen-card {
+      padding: 15px;
+      border-radius: 8px;
+      min-width: 150px;
+      text-align: center;
+    }
+    .resumen-total {
+      background-color: #e3f2fd;
+      border-left: 4px solid #2196f3;
+    }
+    .resumen-stock-bajo {
+      background-color: #fff3e0;
+      border-left: 4px solid #ff9800;
+    }
+    .resumen-caducidad {
+      background-color: #f3e5f5;
+      border-left: 4px solid #9c27b0;
+    }
+    .resumen-vencidos {
+      background-color: #ffebee;
+      border-left: 4px solid #f44336;
+    }
+    .resumen-sin-stock {
+      background-color: #fce4ec;
+      border-left: 4px solid #e91e63;
+    }
+    .contador {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .no-alertas {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
   </style>
 </head>
 <body>
   <!-- Botón Volver -->
   <button class="volver" onclick="volver()">← Volver</button>
 
-  <h1>Panel de Alertas</h1>
+  <h1>🚨 Alertas del Sistema</h1>
 
-  <label>Tipo:
-    <select id="filterTipo">
-      <option value="">Todas</option>
-      <option value="stock_bajo">Stock bajo</option>
-      <option value="temperatura">Temperatura</option>
-      <option value="checklist_incompleto">Checklist incompleto</option>
-    </select>
-  </label>
+  <!-- Resumen de alertas -->
+  <div class="resumen" id="resumen" style="display: none;">
+    <div class="resumen-card resumen-total">
+      <div class="contador" id="total-alertas">0</div>
+      <div>Total Alertas</div>
+    </div>
+    <div class="resumen-card resumen-stock-bajo">
+      <div class="contador" id="stock-bajo">0</div>
+      <div>Stock Bajo</div>
+    </div>
+    <div class="resumen-card resumen-caducidad">
+      <div class="contador" id="caducidad">0</div>
+      <div>Próximos a Caducar</div>
+    </div>
+    <div class="resumen-card resumen-vencidos">
+      <div class="contador" id="vencidos">0</div>
+      <div>Productos Vencidos</div>
+    </div>
+    <div class="resumen-card resumen-sin-stock">
+      <div class="contador" id="sin-stock">0</div>
+      <div>Sin Stock</div>
+    </div>
+  </div>
 
-  <label>Estado:
-    <select id="filterEstado">
-      <option value="">Todos</option>
-      <option value="pendiente">Pendiente</option>
-      <option value="resuelta">Resuelta</option>
-      <option value="ignoradas">Ignoradas</option>
-    </select>
-  </label>
-
-  <button onclick="cargarAlertas()">Aplicar filtros</button>
-
-  <table id="tablaAlertas" style="margin-top:12px">
+  <!-- Tabla de alertas -->
+  <table id="tablaAlertas">
     <thead>
-      <tr><th>ID</th><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Usuario</th><th>Estado</th><th>Acciones</th></tr>
+      <tr>
+        <th>Prioridad</th>
+        <th>Tipo</th>
+        <th>Descripción</th>
+        <th>Detalles</th>
+        <th>Generada</th>
+      </tr>
     </thead>
     <tbody></tbody>
   </table>
 
   <script>
-    const API = 'http://localhost:4000/api/alertas';
+    const API = 'http://localhost:4000/api/alertas-automaticas';
+
+    // Verificar autenticación
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Debes iniciar sesión para ver las alertas');
+      window.location.href = 'login.html';
+    }
 
     function volver() {
-      window.location.href = 'index.html'; // Cambia la ruta si tu página principal es distinta
+      window.location.href = 'index.html';
     }
 
     async function cargarAlertas() {
-      const tipo = document.getElementById('filterTipo').value;
-      const estado = document.getElementById('filterEstado').value;
-      const q = new URLSearchParams();
-      if (tipo) q.set('tipo', tipo);
-      if (estado) q.set('estado', estado);
-
-      const res = await fetch(API + (q.toString() ? ('?' + q.toString()) : ''), {
-        headers: { 'Accept': 'application/json' }
-      });
-      const data = await res.json();
-      renderTable(data);
+      try {
+        const res = await fetch(API, {
+          headers: { 
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert('Sesión expirada. Debes iniciar sesión nuevamente.');
+            window.location.href = 'login.html';
+            return;
+          }
+          if (res.status === 403) {
+            alert('No tienes permisos para ver las alertas.');
+            return;
+          }
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        renderAlertas(data);
+      } catch (error) {
+        console.error('Error detallado:', error);
+        // Mostrar error en la tabla en lugar de alert
+        const tbody = document.querySelector('#tablaAlertas tbody');
+        tbody.innerHTML = `<tr><td colspan="5" class="no-alertas" style="color: red;">
+          ❌ Error al cargar alertas: ${error.message}<br>
+          <small>Revisa la consola para más detalles</small>
+        </td></tr>`;
+      }
     }
 
-    function renderTable(data) {
+    function renderAlertas(data) {
       const tbody = document.querySelector('#tablaAlertas tbody');
       tbody.innerHTML = '';
-      data.forEach(a => {
+      
+      // Mostrar resumen
+      const resumen = data.resumen;
+      document.getElementById('total-alertas').textContent = resumen.total;
+      document.getElementById('stock-bajo').textContent = resumen.stock_bajo;
+      document.getElementById('caducidad').textContent = resumen.caducidad;
+      document.getElementById('vencidos').textContent = resumen.vencidos;
+      document.getElementById('sin-stock').textContent = resumen.sin_stock;
+      document.getElementById('resumen').style.display = 'flex';
+      
+      if (data.alertas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="no-alertas">✅ No hay alertas activas. ¡Todo está bajo control!</td></tr>';
+        return;
+      }
+      
+      data.alertas.forEach(alerta => {
         const tr = document.createElement('tr');
-        tr.className = a.estado === 'pendiente' ? 'pendiente' : (a.estado === 'resuelta' ? 'resuelta' : 'ignoradas');
+        tr.className = `prioridad-${alerta.prioridad}`;
+        
+        // Formatear tipo
+        const tipoTexto = {
+          'stock_bajo': 'STOCK BAJO',
+          'caducidad': 'PRÓXIMO A CADUCAR',
+          'producto_vencido': 'PRODUCTO VENCIDO',
+          'stock_critico': 'SIN STOCK'
+        }[alerta.tipo] || alerta.tipo.toUpperCase();
+        
+        // Formatear detalles adicionales
+        let detalles = '';
+        if (alerta.tipo === 'caducidad' && alerta.dias_restantes !== undefined) {
+          detalles = `${alerta.dias_restantes} días restantes`;
+          if (alerta.numero_lote) detalles += `<br>Lote: ${alerta.numero_lote}`;
+        } else if (alerta.tipo === 'stock_bajo') {
+          detalles = `Stock: ${alerta.stock_actual}/${alerta.stock_minimo}`;
+        } else if (alerta.tipo === 'stock_critico') {
+          detalles = 'Stock agotado';
+        } else if (alerta.numero_lote) {
+          detalles = `Lote: ${alerta.numero_lote}`;
+        }
+        
+        const fechaGeneracion = new Date(alerta.fecha_generacion).toLocaleString('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
         tr.innerHTML = `
-          <td>${a.id_alerta}</td>
-          <td>${new Date(a.fecha).toLocaleString()}</td>
-          <td>${a.tipo}</td>
-          <td>${a.descripcion}</td>
-          <td>${a.nombre_usuario || (a.id_usuario || '')}</td>
-          <td>${a.estado}</td>
-          <td>
-            ${a.estado === 'pendiente' ? `<button class="btn" onclick="cambiarEstado(${a.id_alerta}, 'resuelta')">Resolver</button>
-                                      <button class="btn" onclick="cambiarEstado(${a.id_alerta}, 'ignoradas')">Ignorar</button>` : ''}
-          </td>
+          <td><span class="badge badge-${alerta.prioridad}">${alerta.prioridad.toUpperCase()}</span></td>
+          <td>${tipoTexto}</td>
+          <td><strong>${alerta.descripcion}</strong></td>
+          <td>${detalles}</td>
+          <td>${fechaGeneracion}</td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    async function cambiarEstado(id, estado) {
-      const res = await fetch(`${API}/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado })
-      });
-      if (res.ok) {
-        alert('Estado actualizado');
-        cargarAlertas();
-      } else {
-        const err = await res.json();
-        alert('Error: ' + (err.error || ''));
-      }
-    }
-
-    // carga inicial
+    // Cargar alertas al inicio
     cargarAlertas();
+    
+    // Auto-actualizar cada 30 segundos
+    setInterval(cargarAlertas, 30000);
   </script>
 </body>
 </html>

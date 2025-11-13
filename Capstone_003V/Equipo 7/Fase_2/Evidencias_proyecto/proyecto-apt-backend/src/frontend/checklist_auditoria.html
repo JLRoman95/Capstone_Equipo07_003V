@@ -16,7 +16,7 @@
     .hidden { display: none; }
 
     /* Estilo del botón de volver */
-    .back-btn {
+    .volver {
       display: inline-block;
       background-color: #007BFF;
       color: white;
@@ -26,16 +26,16 @@
       cursor: pointer;
       text-decoration: none;
       font-size: 14px;
-      margin-bottom: 10px;
+      margin-bottom: 20px;
     }
 
-    .back-btn:hover {
+    .volver:hover {
       background-color: #0056b3;
     }
   </style>
 </head>
 <body>
-  <button class="back-btn" onclick="window.history.back()">← Volver</button>
+  <button class="volver" onclick="window.location.href='index.html'">← Volver</button>
   <h1>Auditoría de Checklists</h1>
 
   <table id="checklists-table">
@@ -58,15 +58,51 @@
   <script>
     const API_BASE = "http://localhost:4000/api"; // Cambia si tu backend corre en otro puerto
 
+    // Verificar autenticación
+    const token = localStorage.getItem('token');
+    const usuario = JSON.parse(localStorage.getItem('usuario'));
+    if (!token || !usuario) {
+      alert('Debes iniciar sesión para acceder a la auditoría');
+      window.location.href = 'login.html';
+    }
+
+    // Helper para hacer peticiones autenticadas
+    async function fetchWithAuth(url, options = {}) {
+      const config = {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...options.headers
+        }
+      };
+      
+      const response = await fetch(url, config);
+      
+      if (response.status === 401) {
+        alert('Sesión expirada. Debes iniciar sesión nuevamente.');
+        window.location.href = 'login.html';
+        return;
+      }
+      
+      return response;
+    }
+
     async function fetchChecklists() {
       try {
-        const res = await fetch(`${API_BASE}/checklists`);
+        const res = await fetchWithAuth(`${API_BASE}/checklists`);
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Error al cargar checklists');
+        }
         const data = await res.json();
         // Ordenar por fecha descendente
         data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
         renderChecklists(data);
       } catch (err) {
         console.error("Error al cargar checklists:", err);
+        alert('Error al cargar checklists: ' + err.message);
+        document.querySelector("#checklists-table tbody").innerHTML = '<tr><td colspan="7">Error al cargar checklists</td></tr>';
       }
     }
 
@@ -97,7 +133,11 @@
       }
 
       try {
-        const res = await fetch(`${API_BASE}/checklists/${id}/items`);
+        const res = await fetchWithAuth(`${API_BASE}/checklists/${id}/items`);
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Error al cargar ítems');
+        }
         const items = await res.json();
 
         const table = document.createElement("table");
@@ -113,10 +153,13 @@
         const body = document.createElement("tbody");
         items.forEach(i => {
           const tr = document.createElement("tr");
+          const resultadoTexto = i.resultado === 'ok' ? '✅ OK' : 
+                               i.resultado === 'no_ok' ? '❌ No OK' : 
+                               i.resultado === 'na' ? '⚪ N/A' : i.resultado;
           tr.innerHTML = `
             <td>${i.descripcion}</td>
-            <td>${i.resultado}</td>
-            <td>${i.observacion || ""}</td>
+            <td>${resultadoTexto}</td>
+            <td>${i.observacion || "-"}</td>
           `;
           body.appendChild(tr);
         });
@@ -125,6 +168,7 @@
         btn.parentNode.appendChild(table);
       } catch (err) {
         console.error("Error al cargar ítems:", err);
+        alert('Error al cargar ítems: ' + err.message);
       }
     }
 

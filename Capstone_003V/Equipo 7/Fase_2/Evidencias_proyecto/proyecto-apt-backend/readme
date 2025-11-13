@@ -1,0 +1,60 @@
+# Sistema APT - Control de Calidad Alimentaria
+
+Sistema para control de inventario, checklists y producción alimentaria.
+
+## 🚀 Instalación Rápida
+
+### Requisitos
+- Node.js 16+
+- PostgreSQL 12+
+
+### 1. Instalar Proyecto
+```bash
+git clone <repo-url>
+cd proyecto-apt-backend
+npm install
+```
+
+### 2. Base de Datos
+```sql
+-- Conectar como postgres
+CREATE DATABASE apt_sistema;
+CREATE USER apt_user WITH PASSWORD 'password123';
+GRANT ALL PRIVILEGES ON DATABASE apt_sistema TO apt_user;
+```
+
+```bash
+# Aplicar schema
+psql -U apt_user -d apt_sistema -f database_schema_limpia.sql
+```
+
+### 3. Configuración
+Crear `.env`:
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=apt_sistema
+DB_USER=apt_user
+DB_PASSWORD=password123
+PORT=4000
+JWT_SECRET=tu_secret_aqui
+```
+
+### 4. Ejecutar
+```bash
+npm run dev
+```
+
+## 🌐 Acceso
+
+- **Sistema**: http://localhost:4000
+- **API Docs**: http://localhost:4000/api-docs
+- **Login**: admin@apt.com / admin123
+
+## 📱 Módulos
+
+- **Dashboard** - Estadísticas generales
+- **Inventario** - Control FIFO con alertas
+- **Checklists** - Control de calidad
+- **Producción** - Registro por turnos
+- **Reportes** - PDFs automatizados

@@ -6,15 +6,21 @@ import {
   actualizarProducto,
   eliminarProducto
 } from '../controllers/productoController.js';
+import { verifyToken } from '../middleware/authMiddleware.js';
+import { requirePermission } from '../middleware/permissionsMiddleware.js';
 
 const router = express.Router();
 
-// Listar todos los productos
-router.get('/', listarProductos);
+// Todos los endpoints requieren autenticación
+router.use(verifyToken);
 
-// Crear un nuevo producto
+// Listar todos los productos - todos los roles que tengan permiso de lectura
+router.get('/', requirePermission('productos', 'read'), listarProductos);
+
+// Crear un nuevo producto - admin y cocinero
 router.post(
   '/',
+  requirePermission('productos', 'create'),
   [
     body('nombre').notEmpty().withMessage('Nombre es obligatorio'),
     body('codigo').notEmpty().withMessage('Código es obligatorio'),
@@ -25,9 +31,10 @@ router.post(
   crearProducto
 );
 
-// Actualizar un producto por ID
+// Actualizar un producto por ID - admin y auditor
 router.put(
   '/:id',
+  requirePermission('productos', 'update'),
   [
     body('nombre').notEmpty().withMessage('Nombre es obligatorio'),
     body('codigo').notEmpty().withMessage('Código es obligatorio'),
@@ -38,7 +45,7 @@ router.put(
   actualizarProducto
 );
 
-// Eliminar un producto por ID
-router.delete('/:id', eliminarProducto);
+// Eliminar un producto por ID - solo admin
+router.delete('/:id', requirePermission('productos', 'delete'), eliminarProducto);
 
 export default router;

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Alertas - APT</title>
+  <style>
+    body{font-family:Arial;margin:20px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #ccc;padding:8px;text-align:left}
+    th{background:#333;color:#fff}
+    .btn{padding:6px 10px;margin-right:6px;cursor:pointer}
+    .pendiente{background:#fff3cd}
+    .resuelta{background:#d4edda}
+    .ignorada{background:#f8d7da}
+    .volver{
+      display: inline-block;
+      background-color: #007BFF;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .volver:hover{background-color: #0056b3;}
+    .estado-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .estado-badge.pendiente {
+      background-color: #ffc107;
+      color: #212529;
+    }
+    .estado-badge.resuelta {
+      background-color: #28a745;
+      color: white;
+    }
+    .estado-badge.ignorada {
+      background-color: #dc3545;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <!-- Botón Volver -->
+  <button class="volver" onclick="volver()">← Volver</button>
+
+  <h1>Panel de Alertas</h1>
+
+  <button onclick="cargarAlertas()">🔄 Actualizar</button>
+  <button onclick="verificarStockManual()" style="margin-left: 10px; background-color: #28a745; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">🔍 Verificar Stock</button>
+  <button onclick="limpiarObsoletas()" style="margin-left: 10px; background-color: #dc3545; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">🧹 Limpiar Obsoletas</button>
+  <button onclick="actualizarAutomatico()" id="btnAutoUpdate" style="margin-left: 10px; background-color: #17a2b8; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">🔄 Auto-actualizar: OFF</button>
+
+  <table id="tablaAlertas" style="margin-top:12px">
+    <thead>
+      <tr><th>ID</th><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Usuario</th><th>Estado</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const API = 'http://localhost:4000/api/alertas';
+    let autoUpdateInterval = null;
+    let isAutoUpdateEnabled = false;
+
+    // Verificar autenticación
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Debes iniciar sesión para ver las alertas');
+      window.location.href = 'login.html';
+    }
+
+    function volver() {
+      if (autoUpdateInterval) {
+        clearInterval(autoUpdateInterval);
+      }
+      window.location.href = 'index.html';
+    }
+
+    async function cargarAlertas() {
+      try {
+        const res = await fetch(API, {
+          headers: { 
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert('Sesión expirada. Debes iniciar sesión nuevamente.');
+            window.location.href = 'login.html';
+            return;
+          }
+          throw new Error('Error al cargar alertas');
+        }
+        
+        const data = await res.json();
+        renderTable(data);
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al cargar alertas: ' + error.message);
+      }
+    }
+
+    function renderTable(data) {
+      const tbody = document.querySelector('#tablaAlertas tbody');
+      tbody.innerHTML = '';
+      
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay alertas</td></tr>';
+        return;
+      }
+      
+      data.forEach(a => {
+        const tr = document.createElement('tr');
+        tr.className = a.estado;
+        
+        let descripcionMostrar = a.descripcion;
+        if (a.tipo === 'stock_bajo' && a.producto_nombre) {
+          descripcionMostrar = `${a.producto_nombre} - Stock: ${a.stock_actual || 0}/${a.stock_minimo || 0}`;
+        }
+        
+        // Formatear tipo para mostrar
+        let tipoMostrar = a.tipo === 'stock_bajo' ? 'STOCK BAJO' : 
+                         a.tipo === 'caducidad' ? 'PRÓXIMO A CADUCAR' : a.tipo.toUpperCase();
+        
+        tr.innerHTML = `
+          <td>${a.id_alerta}</td>
+          <td>${new Date(a.fecha).toLocaleDateString()}</td>
+          <td>${tipoMostrar}</td>
+          <td>${descripcionMostrar}</td>
+          <td>${a.nombre_usuario || 'Sistema'}</td>
+          <td><span class="estado-badge ${a.estado}">ACTIVA</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function verificarStockManual() {
+      try {
+        const res = await fetch(`${API}/verificar-stock`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert('Sesión expirada. Debes iniciar sesión nuevamente.');
+            window.location.href = 'login.html';
+            return;
+          }
+          const err = await res.json();
+          throw new Error(err.error || 'Error al verificar stock');
+        }
+        
+        const result = await res.json();
+        alert(`Verificación completada: ${result.message}`);
+        cargarAlertas(); // Recargar alertas para mostrar las nuevas
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al verificar stock: ' + error.message);
+      }
+    }
+
+    async function limpiarObsoletas() {
+      try {
+        const res = await fetch(`${API}/limpiar-obsoletas`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert('Sesión expirada. Debes iniciar sesión nuevamente.');
+            window.location.href = 'login.html';
+            return;
+          }
+          if (res.status === 403) {
+            alert('No tienes permisos para limpiar alertas obsoletas.');
+            return;
+          }
+          const err = await res.json();
+          throw new Error(err.error || 'Error al limpiar alertas obsoletas');
+        }
+        
+        const result = await res.json();
+        alert(`Limpieza completada: ${result.message}`);
+        cargarAlertas(); // Recargar alertas para mostrar las actualizadas
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error al limpiar alertas obsoletas: ' + error.message);
+      }
+    }
+
+    function actualizarAutomatico() {
+      const btn = document.getElementById('btnAutoUpdate');
+      
+      if (isAutoUpdateEnabled) {
+        // Desactivar auto-actualización
+        clearInterval(autoUpdateInterval);
+        autoUpdateInterval = null;
+        isAutoUpdateEnabled = false;
+        btn.textContent = '🔄 Auto-actualizar: OFF';
+        btn.style.backgroundColor = '#17a2b8';
+      } else {
+        // Activar auto-actualización cada 30 segundos
+        autoUpdateInterval = setInterval(cargarAlertas, 30000);
+        isAutoUpdateEnabled = true;
+        btn.textContent = '🔄 Auto-actualizar: ON';
+        btn.style.backgroundColor = '#28a745';
+        alert('Auto-actualización activada (cada 30 segundos)');
+      }
+    }
+
+    // Limpiar interval al salir de la página
+    window.addEventListener('beforeunload', () => {
+      if (autoUpdateInterval) {
+        clearInterval(autoUpdateInterval);
+      }
+    });
+
+    // carga inicial
+    cargarAlertas();
+  </script>
+</body>
+</html>

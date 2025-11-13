@@ -14,16 +14,14 @@
   </header>
 
   <main class="flex-grow p-6">
-    <!-- Botón de volver (estilo unificado) -->
+    <!-- Botón de volver -->
     <div class="mb-4">
-      <button onclick="window.history.back()" 
-        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2">
+      <button onclick="window.location.href='index.html'" 
+        style="display: inline-block; background-color: #007BFF; color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 14px; margin-bottom: 20px;">
         ← Volver
       </button>
     </div>
-
-    <div class="bg-white p-6 rounded-xl shadow-md overflow-x-auto">
-      <div id="produccionesContainer"></div>
+    <div id="produccionesContainer">
     </div>
   </main>
 
@@ -52,6 +50,7 @@
           if (!produccionesMap[item.id_produccion]) {
             produccionesMap[item.id_produccion] = {
               fecha: item.fecha,
+              hora_registro: item.hora_registro,
               responsable: item.responsable,
               turno: item.turno,
               productos: []
@@ -66,12 +65,33 @@
           });
         });
 
-        // Ordenar por fecha descendente
+        // Ordenar por fecha y hora descendente (más recientes primero)
         const produccionesOrdenadas = Object.entries(produccionesMap)
-          .sort((a, b) => new Date(b[1].fecha) - new Date(a[1].fecha));
+          .sort((a, b) => {
+            // Crear objetos Date completos con fecha y hora
+            const fechaA = new Date(a[1].fecha);
+            const fechaB = new Date(b[1].fecha);
+            
+            // Si las fechas son diferentes, ordenar por fecha
+            if (fechaA.getTime() !== fechaB.getTime()) {
+              return fechaB - fechaA; // Más reciente primero
+            }
+            
+            // Si las fechas son iguales, ordenar por hora
+            const horaA = a[1].hora_registro || '00:00:00';
+            const horaB = b[1].hora_registro || '00:00:00';
+            
+            return horaB.localeCompare(horaA); // Hora más reciente primero
+          });
 
         const container = document.getElementById('produccionesContainer');
         container.innerHTML = '';
+
+        // Agregar contador de registros
+        const contadorDiv = document.createElement('div');
+        contadorDiv.className = 'mb-4 text-sm text-gray-600';
+        contadorDiv.textContent = `📊 Total de registros de producción: ${produccionesOrdenadas.length}`;
+        container.appendChild(contadorDiv);
 
         produccionesOrdenadas.forEach(([id, prod]) => {
           const prodDiv = document.createElement('div');
@@ -80,7 +100,17 @@
           // Resumen de producción
           const resumen = document.createElement('button');
           resumen.className = 'w-full bg-gray-200 px-4 py-2 text-left font-semibold hover:bg-gray-300';
-          resumen.textContent = `ID: ${id} | Fecha: ${prod.fecha} | Responsable: ${prod.responsable} | Turno: ${prod.turno}`;
+          
+          // Formatear fecha y hora de manera más clara
+          const fechaObj = new Date(prod.fecha);
+          const fechaFormateada = fechaObj.toLocaleDateString('es-ES', {
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+          });
+          const horaFormateada = prod.hora_registro ? prod.hora_registro.substring(0, 5) : 'N/A'; // Solo HH:MM
+          
+          resumen.textContent = `📅 ${fechaFormateada} 🕐 ${horaFormateada} | ID: ${id} | ${prod.responsable} (${prod.turno})`;
           resumen.onclick = () => detalles.classList.toggle('hidden');
 
           // Detalles de productos
@@ -95,7 +125,7 @@
               <th class="p-2 border">Producto</th>
               <th class="p-2 border">Cantidad</th>
               <th class="p-2 border">Temp. Cocción</th>
-              <th class="p-2 border">Hora</th>
+              <th class="p-2 border">Tiempo de Cocción</th>
               <th class="p-2 border">Observaciones</th>
             </tr>
           `;

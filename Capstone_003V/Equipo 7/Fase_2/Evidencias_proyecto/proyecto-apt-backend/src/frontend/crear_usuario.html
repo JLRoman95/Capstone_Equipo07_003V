@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crear Usuario - APT</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 20px; 
+      background-color: #f5f5f5; 
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      background: white; 
+      padding: 30px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+    }
+    h1 { 
+      text-align: center; 
+      color: #333; 
+      margin-bottom: 30px; 
+    }
+    .form-group { 
+      margin-bottom: 20px; 
+    }
+    label { 
+      display: block; 
+      margin-bottom: 5px; 
+      color: #555; 
+      font-weight: bold; 
+    }
+    input, select { 
+      width: 100%; 
+      padding: 12px; 
+      border: 1px solid #ddd; 
+      border-radius: 4px; 
+      font-size: 14px; 
+      box-sizing: border-box; 
+    }
+    input:focus, select:focus { 
+      outline: none; 
+      border-color: #007bff; 
+      box-shadow: 0 0 0 2px rgba(0,123,255,0.25); 
+    }
+    .btn { 
+      background: #007bff; 
+      color: white; 
+      padding: 12px 24px; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      font-size: 16px; 
+      margin-right: 10px; 
+    }
+    .btn:hover { 
+      background: #0056b3; 
+    }
+    .btn-secondary { 
+      background: #6c757d; 
+    }
+    .btn-secondary:hover { 
+      background: #545b62; 
+    }
+    .error { 
+      color: #dc3545; 
+      font-size: 14px; 
+      margin-top: 5px; 
+    }
+    .success { 
+      color: #28a745; 
+      font-size: 14px; 
+      margin-top: 5px; 
+    }
+    .btn-group { 
+      text-align: center; 
+      margin-top: 30px; 
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>👤 Crear Nuevo Usuario</h1>
+    
+    <form id="formCrearUsuario">
+      <div class="form-group">
+        <label for="nombre">Nombre Completo:</label>
+        <input type="text" id="nombre" required>
+        <div class="error" id="errorNombre"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email:</label>
+        <input type="email" id="email" required>
+        <div class="error" id="errorEmail"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Contraseña:</label>
+        <input type="password" id="password" required minlength="6">
+        <div class="error" id="errorPassword"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="rol">Rol:</label>
+        <select id="rol" required>
+          <option value="">Seleccionar rol</option>
+          <option value="admin">Administrador</option>
+          <option value="cocinero">Cocinero</option>
+          <option value="auditor">Auditor</option>
+        </select>
+        <div class="error" id="errorRol"></div>
+      </div>
+
+      <div class="btn-group">
+        <button type="submit" class="btn">✅ Crear Usuario</button>
+        <button type="button" class="btn btn-secondary" onclick="volver()">← Volver</button>
+      </div>
+
+      <div id="mensaje" style="margin-top: 20px; text-align: center;"></div>
+    </form>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:4000/api';
+
+    // Verificar que el usuario sea admin
+    const usuario = JSON.parse(localStorage.getItem('usuario'));
+    const token = localStorage.getItem('token');
+
+    if (!usuario || !token || usuario.rol !== 'admin') {
+      alert('Acceso denegado. Solo los administradores pueden crear usuarios.');
+      window.location.href = 'index.html';
+    }
+
+    // Helper para peticiones autenticadas
+    async function fetchWithAuth(url, options = {}) {
+      const config = {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...options.headers
+        }
+      };
+      
+      const response = await fetch(url, config);
+      
+      if (response.status === 401) {
+        alert('Sesión expirada. Debes iniciar sesión nuevamente.');
+        window.location.href = 'login.html';
+        return;
+      }
+      
+      return response;
+    }
+
+    // Limpiar mensajes de error
+    function limpiarErrores() {
+      document.getElementById('errorNombre').textContent = '';
+      document.getElementById('errorEmail').textContent = '';
+      document.getElementById('errorPassword').textContent = '';
+      document.getElementById('errorRol').textContent = '';
+      document.getElementById('mensaje').innerHTML = '';
+    }
+
+    // Mostrar mensaje
+    function mostrarMensaje(texto, esError = false) {
+      const mensajeDiv = document.getElementById('mensaje');
+      mensajeDiv.innerHTML = `<div class="${esError ? 'error' : 'success'}">${texto}</div>`;
+    }
+
+    // Validar formulario
+    function validarFormulario() {
+      let esValido = true;
+      limpiarErrores();
+
+      const nombre = document.getElementById('nombre').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const rol = document.getElementById('rol').value;
+
+      if (!nombre) {
+        document.getElementById('errorNombre').textContent = 'El nombre es obligatorio';
+        esValido = false;
+      }
+
+      if (!email) {
+        document.getElementById('errorEmail').textContent = 'El email es obligatorio';
+        esValido = false;
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        document.getElementById('errorEmail').textContent = 'Email inválido';
+        esValido = false;
+      }
+
+      if (!password) {
+        document.getElementById('errorPassword').textContent = 'La contraseña es obligatoria';
+        esValido = false;
+      } else if (password.length < 6) {
+        document.getElementById('errorPassword').textContent = 'La contraseña debe tener al menos 6 caracteres';
+        esValido = false;
+      }
+
+      if (!rol) {
+        document.getElementById('errorRol').textContent = 'Debe seleccionar un rol';
+        esValido = false;
+      }
+
+      return esValido;
+    }
+
+    // Crear usuario
+    document.getElementById('formCrearUsuario').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (!validarFormulario()) return;
+
+      const formData = {
+        nombre: document.getElementById('nombre').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        password: document.getElementById('password').value,
+        rol: document.getElementById('rol').value
+      };
+
+      try {
+        const response = await fetchWithAuth(`${API_URL}/auth/register`, {
+          method: 'POST',
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          mostrarMensaje('✅ Usuario creado exitosamente', false);
+          document.getElementById('formCrearUsuario').reset();
+          
+          // Redirigir después de 2 segundos
+          setTimeout(() => {
+            window.location.href = 'index.html';
+          }, 2000);
+        } else {
+          if (data.errors) {
+            // Mostrar errores de validación específicos
+            data.errors.forEach(error => {
+              const field = error.path || error.param;
+              const errorDiv = document.getElementById(`error${field.charAt(0).toUpperCase() + field.slice(1)}`);
+              if (errorDiv) {
+                errorDiv.textContent = error.msg;
+              }
+            });
+          } else {
+            mostrarMensaje(data.error || 'Error al crear usuario', true);
+          }
+        }
+      } catch (err) {
+        console.error('Error:', err);
+        mostrarMensaje('Error de conexión. Intente nuevamente.', true);
+      }
+    });
+
+    function volver() {
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>

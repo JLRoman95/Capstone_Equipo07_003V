@@ -3,12 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Inventario</title>
+<title>Inventario - Control FIFO</title>
 <style>
   body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 20px; }
   h1 { text-align: center; color: #333; margin-bottom: 20px; }
   .botones-top { display: flex; justify-content: space-between; margin-bottom: 20px; }
   button { padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+
+  .fifo-banner {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
 
   .producto-card {
     background: #fff;
@@ -34,18 +43,75 @@
   th, td { padding: 6px 10px; border-bottom: 1px solid #ccc; text-align: left; }
   th { background: #eee; }
 
+  /* Indicadores FIFO */
+  .fifo-priority {
+    background: #ff9800;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+  }
+  .fifo-old {
+    background: #f44336;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .fifo-normal {
+    background: #4CAF50;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .dias-inventario {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+  }
+
   /* Modal */
   .modal { display: none; position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
   .modal .content { background: #fff; padding: 20px; border-radius: 8px; width: 300px; }
   .modal input, .modal select { width: 100%; padding: 6px; margin-top: 10px; }
 
+  /* Botón volver */
+  .volver {
+    display: inline-block;
+    background-color: #007BFF;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .volver:hover { background-color: #0056b3; }
+
+  .fifo-button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 5px;
+  }
+  .fifo-button:hover { background-color: #45a049; }
+
 </style>
 </head>
 <body>
 <div class="botones-top">
-  <button onclick="window.location.href='index.html'">← Volver</button>
+  <button class="volver" onclick="window.location.href='index.html'">← Volver</button>
   <button onclick="abrirModalProducto()">+ Agregar Producto</button>
 </div>
+
 
 <h1>Inventario</h1>
 <div id="productosContainer"></div>
@@ -82,6 +148,7 @@
     <h3>Agregar Lote</h3>
     <label id="loteProductoName"></label>
     <input type="number" id="loteCantidad" placeholder="Cantidad" min="1" />
+    <label for="loteCaducidad">Fecha de Caducidad:</label>
     <input type="date" id="loteCaducidad" placeholder="Fecha de caducidad" />
     <button onclick="crearLote()">Agregar</button>
     <button onclick="cerrarModalLote()">Cancelar</button>
@@ -96,17 +163,40 @@ let productoActual = null;
 
 // Traer usuario logueado
 const usuario = JSON.parse(localStorage.getItem('usuario'));
-if(!usuario) {
-  alert('Debe iniciar sesión');
-  window.location.href = './login.html';
+const token = localStorage.getItem('token');
+if(!usuario || !token) {
+  alert('Debes iniciar sesión');
+  window.location.href = 'login.html';
 }
 
-// Cargar inventario
+// Helper para hacer peticiones autenticadas
+async function fetchWithAuth(url, options = {}) {
+  const config = {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      ...options.headers
+    }
+  };
+  
+  const response = await fetch(url, config);
+  
+  if (response.status === 401) {
+    alert('Sesión expirada. Debes iniciar sesión nuevamente.');
+    window.location.href = 'login.html';
+    return;
+  }
+  
+  return response;
+}
+
+// Cargar inventario con información FIFO mejorada
 async function cargarInventario() {
   try {
     const [productosRes, inventarioRes] = await Promise.all([
-      fetch(`${API_URL}/productos`),
-      fetch(`${API_URL}/inventario`)
+      fetchWithAuth(`${API_URL}/productos`),
+      fetchWithAuth(`${API_URL}/inventario`)
     ]);
     productosData = await productosRes.json();
     inventarioData = await inventarioRes.json();
@@ -116,6 +206,7 @@ async function cargarInventario() {
 
     productosData.forEach(p => {
       const misLotes = inventarioData.filter(l => l.id_producto === p.id_producto);
+      // Ordenar lotes por FIFO (ya viene ordenado del backend)
       const stockTotal = misLotes.reduce((sum, l) => sum + Number(l.stock_actual), 0);
       const proximaCaducidad = misLotes.length ? misLotes.map(l => l.fecha_caducidad).sort()[0] : '-';
       const lowStock = stockTotal < p.stock_minimo ? 'low-stock' : '';
@@ -134,22 +225,41 @@ async function cargarInventario() {
             <span>Próxima caducidad: ${proximaCaducidad}</span>
             <button onclick="abrirModalStockMin(${p.id_producto})">Editar mínimo</button>
             <button onclick="abrirModalLote(${p.id_producto})">+ Lote</button>
+            <button class="fifo-button" onclick="verProximoLoteFIFO(${p.id_producto})">Ver FIFO</button>
           </div>
         </div>
         <div class="lotes">
           <table>
             <thead>
-              <tr><th>Lote</th><th>Cantidad</th><th>Caducidad</th><th>Fecha ingreso</th></tr>
+              <tr><th>Lote</th><th>Cantidad</th><th>Fecha Ingreso</th><th>Caducidad</th><th>Días en Stock</th><th>Prioridad FIFO</th></tr>
             </thead>
             <tbody>
-              ${misLotes.map(l => `
-                <tr>
-                  <td>${l.id_inventario}</td>
-                  <td>${l.stock_actual}</td>
-                  <td>${l.fecha_caducidad || '-'}</td>
-                  <td>${new Date(l.fecha_ingreso).toLocaleDateString()}</td>
-                </tr>
-              `).join('')}
+              ${misLotes.map((l, index) => {
+                const fechaIngreso = new Date(l.fecha_ingreso);
+                const diasEnStock = Math.floor((new Date() - fechaIngreso) / (1000 * 60 * 60 * 24));
+                let prioridadClass = 'fifo-normal';
+                let prioridadTexto = 'Normal';
+                
+                if (index === 0) {
+                  prioridadClass = 'fifo-priority';
+                  prioridadTexto = 'USAR PRIMERO';
+                }
+                if (diasEnStock > 7) {
+                  prioridadClass = 'fifo-old';
+                  prioridadTexto = 'URGENTE';
+                }
+                
+                return `
+                  <tr style="${index === 0 ? 'background-color: #fff3e0;' : ''}">
+                    <td>${l.id_inventario}</td>
+                    <td>${l.stock_actual}</td>
+                    <td>${fechaIngreso.toLocaleDateString()}</td>
+                    <td>${l.fecha_caducidad || '-'}</td>
+                    <td>${diasEnStock} días</td>
+                    <td><span class="${prioridadClass}">${prioridadTexto}</span></td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -196,9 +306,8 @@ async function guardarStockMin(){
   const nuevoMin = Number(document.getElementById('modalStockMin').value);
   if(!productoActual) return;
   try {
-    await fetch(`${API_URL}/productos/${productoActual.id_producto}`, {
+    await fetchWithAuth(`${API_URL}/productos/${productoActual.id_producto}`, {
       method:'PUT',
-      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         nombre: productoActual.nombre,
         codigo: productoActual.codigo,
@@ -214,7 +323,7 @@ async function guardarStockMin(){
 }
 
 async function cargarProveedores(){
-  const res = await fetch(`${API_URL}/proveedores`);
+  const res = await fetchWithAuth(`${API_URL}/proveedores`);
   const data = await res.json();
   const select = document.getElementById('nuevoProveedor');
   select.innerHTML = '<option value="">Seleccionar proveedor</option>';
@@ -232,9 +341,8 @@ async function crearProducto(){
   if(!nombre || !codigo || !categoria || !unidad || !proveedor){ return alert('Completa todos los campos'); }
 
   try {
-    await fetch(`${API_URL}/productos`, {
+    await fetchWithAuth(`${API_URL}/productos`, {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         nombre, codigo, categoria, unidad_medida: unidad, id_proveedor: proveedor, stock_minimo: stockMin
       })
@@ -251,19 +359,84 @@ async function crearLote(){
   if(!cantidad || cantidad <= 0){ return alert('Cantidad debe ser mayor a 0'); }
 
   try {
-    await fetch(`${API_URL}/inventario`, {
+    await fetchWithAuth(`${API_URL}/inventario`, {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         id_producto: productoActual.id_producto,
         stock_actual: cantidad,
-        fecha_caducidad: fechaCad,
-        id_usuario: usuario.id // ✅ Usuario logueado
+        fecha_caducidad: fechaCad
       })
     });
     cerrarModalLote();
     cargarInventario();
   } catch(err){ console.error(err); alert('No se pudo crear el lote'); }
+}
+
+// Nueva función: Ver próximo lote FIFO
+async function verProximoLoteFIFO(id_producto) {
+  try {
+    const response = await fetchWithAuth(`${API_URL}/inventario/proximo/${id_producto}`);
+    
+    if (response.status === 404) {
+      alert('No hay stock disponible para este producto');
+      return;
+    }
+    
+    const lote = await response.json();
+    const producto = productosData.find(p => p.id_producto === id_producto);
+    
+    const mensaje = `
+🔴 PRÓXIMO LOTE A USAR (FIFO)
+
+Producto: ${producto.nombre}
+Lote ID: ${lote.id_inventario}
+Stock disponible: ${lote.stock_actual} ${producto.unidad_medida}
+Fecha de ingreso: ${new Date(lote.fecha_ingreso).toLocaleDateString()}
+Días en inventario: ${lote.dias_en_inventario}
+Fecha de caducidad: ${lote.fecha_caducidad || 'No especificada'}
+
+${lote.prioridad}
+    `.trim();
+    
+    alert(mensaje);
+  } catch(err) {
+    console.error(err);
+    alert('Error al obtener información FIFO');
+  }
+}
+
+// Nueva función: Ver todos los lotes FIFO de un producto
+async function verInventarioCompletoFIFO(id_producto) {
+  try {
+    const response = await fetchWithAuth(`${API_URL}/inventario/fifo/${id_producto}`);
+    const data = await response.json();
+    const producto = productosData.find(p => p.id_producto === id_producto);
+    
+    if (data.lotes_disponibles.length === 0) {
+      alert('No hay lotes disponibles para este producto');
+      return;
+    }
+    
+    let mensaje = `📦 INVENTARIO FIFO COMPLETO\n\nProducto: ${producto.nombre}\nTotal lotes: ${data.total_lotes}\nStock total: ${data.stock_total} ${producto.unidad_medida}\n\nLOTES (ordenados por FIFO):\n`;
+    
+    data.lotes_disponibles.forEach((lote, index) => {
+      const fechaIngreso = new Date(lote.fecha_ingreso);
+      const diasEnStock = Math.floor((new Date() - fechaIngreso) / (1000 * 60 * 60 * 24));
+      const prioridad = index === 0 ? '🔴 USAR PRIMERO' : `${index + 1}° en cola`;
+      
+      mensaje += `\n${prioridad}
+  Lote: ${lote.id_inventario}
+  Stock: ${lote.stock_actual}
+  Ingreso: ${fechaIngreso.toLocaleDateString()}
+  Días: ${diasEnStock}
+`;
+    });
+    
+    alert(mensaje);
+  } catch(err) {
+    console.error(err);
+    alert('Error al obtener inventario FIFO completo');
+  }
 }
 
 /* ----- INICIO ----- */

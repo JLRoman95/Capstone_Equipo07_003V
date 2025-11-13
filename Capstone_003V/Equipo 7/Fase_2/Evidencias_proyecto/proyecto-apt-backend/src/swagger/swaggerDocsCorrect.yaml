@@ -1,0 +1,2041 @@
+openapi: 3.0.0
+info:
+  title: Sistema APT - API Completa
+  version: 3.0.0
+  description: |
+    # Sistema APT (Automatización de Procesos y Trazabilidad)
+    
+    API completa para gestión de inventario, checklists, producción y reportes.
+    Base de datos optimizada con 9 tablas esenciales.
+    
+    ## AUTENTICACIÓN REQUERIDA
+    
+    ### PASO 1: Obtener Token
+    1. Utilizar el endpoint **POST /api/auth/login**
+    2. Usar una de las credenciales de prueba disponibles
+    3. Copiar el **token** de la respuesta
+    
+    ### PASO 2: Autorizar API
+    1. Hacer clic en el botón **Authorize** (arriba a la derecha)
+    2. Ingresar el token en el campo "Value"
+    3. Hacer clic en "Authorize"
+    
+    ### PASO 3: Acceso Completo
+    Una vez autorizado, puede utilizar todos los endpoints sin restricciones.
+    
+    ## CREDENCIALES DE PRUEBA
+    
+    ### Administrador (acceso completo):
+    - **Email:** admin@apt.com
+    - **Password:** admin123
+    - **Permisos:** Todos los endpoints
+    
+    ### Cocinero (producción e inventario):
+    - **Email:** cocinero@apt.com 
+    - **Password:** cocinero123
+    - **Permisos:** Inventario, producción, checklists
+    
+    ### Auditor (auditoría y reportes):
+    - **Email:** auditor@apt.com
+    - **Password:** auditor123
+    - **Permisos:** Checklists, reportes, auditoría
+    
+    ## CARACTERÍSTICAS DEL SISTEMA
+    - Sistema FIFO para rotación de inventario
+    - Alertas automáticas en tiempo real
+    - Reportes PDF y JSON descargables
+    - Auditoría y trazabilidad completa
+    - Autenticación JWT con roles
+    
+  contact:
+    name: Sistema APT
+    url: http://localhost:4000
+servers:
+  - url: http://localhost:4000
+    description: Servidor local de desarrollo
+
+tags:
+  - name: Autenticación
+    description: Login, registro y gestión de usuarios
+  - name: Proveedores
+    description: Gestión completa de proveedores
+  - name: Productos
+    description: Gestión de catálogo de productos
+  - name: Inventario
+    description: Control de inventario por lotes con sistema FIFO
+  - name: Checklists
+    description: Sistema de checklists y auditoría
+  - name: Producción
+    description: Registro de producción de alimentos
+  - name: Alertas Automáticas
+    description: Sistema de alertas en tiempo real
+  - name: Reportes
+    description: Generación de reportes PDF y JSON
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        **Autenticación JWT**
+        
+        **Pasos para autenticarse:**
+        
+        1. **Hacer Login:**
+           - Utilizar endpoint `POST /api/auth/login`
+           - Credenciales: `admin@apt.com` / `admin123`
+           - Copiar el **token** de la respuesta
+        
+        2. **Autorizar API:**
+           - Hacer clic en **"Authorize"** (botón superior)
+           - Ingresar token en campo "Value:"
+           - Confirmar autorización
+        
+        **Formato del token:** `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+
+  schemas:
+    # === ESQUEMAS DE AUTENTICACIÓN ===
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "admin@apt.com"
+          description: Email del usuario
+        password:
+          type: string
+          example: "admin123"
+          description: Contraseña del usuario
+          
+    LoginResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Login exitoso"
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c3VhcmlvIjoxLCJlbWFpbCI6ImFkbWluQGFwdC5jb20iLCJyb2wiOiJhZG1pbiIsImlhdCI6MTczMTUwNDAwMCwiZXhwIjoxNzMxNTA3NjAwfQ.example_signature"
+          description: "Token JWT requerido para autorizar la API"
+        user:
+          $ref: '#/components/schemas/Usuario'
+      example:
+        message: "Login exitoso"
+        token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c3VhcmlvIjoxLCJlbWFpbCI6ImFkbWluQGFwdC5jb20iLCJyb2wiOiJhZG1pbiIsImlhdCI6MTczMTUwNDAwMCwiZXhwIjoxNzMxNTA3NjAwfQ.example_signature"
+        user:
+          id_usuario: 1
+          nombre: "Administrador APT"
+          email: "admin@apt.com"
+          rol: "admin"
+
+    RegisterRequest:
+      type: object
+      required: [nombre, email, password, rol]
+      properties:
+        nombre:
+          type: string
+          example: "Juan Pérez"
+          description: Nombre completo del usuario
+        email:
+          type: string
+          format: email
+          example: "juan@apt.com"
+        password:
+          type: string
+          example: "password123"
+          minLength: 6
+        rol:
+          type: string
+          enum: [admin, cocinero, auditor]
+          example: "cocinero"
+
+    Usuario:
+      type: object
+      properties:
+        id_usuario:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: "Juan Pérez"
+        email:
+          type: string
+          format: email
+          example: "juan@apt.com"
+        rol:
+          type: string
+          enum: [admin, cocinero, auditor]
+          example: "admin"
+        activo:
+          type: boolean
+          example: true
+        creado_en:
+          type: string
+          format: date-time
+          example: "2025-11-12T10:00:00Z"
+
+    # === ESQUEMAS DE PROVEEDORES ===
+    Proveedor:
+      type: object
+      properties:
+        id_proveedor:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: "Distribuidora La Fresca S.A."
+        contacto:
+          type: string
+          example: "Carlos García"
+        telefono:
+          type: string
+          example: "+56912345678"
+        email:
+          type: string
+          format: email
+          example: "contacto@lafresca.com"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-11-12T10:00:00Z"
+
+    ProveedorRequest:
+      type: object
+      required: [nombre, contacto, telefono, email]
+      properties:
+        nombre:
+          type: string
+          example: "Distribuidora La Fresca S.A."
+          description: Nombre de la empresa proveedora
+        contacto:
+          type: string
+          example: "Carlos García"
+          description: Persona de contacto
+        telefono:
+          type: string
+          example: "+56912345678"
+          description: Teléfono de contacto
+        email:
+          type: string
+          format: email
+          example: "contacto@lafresca.com"
+          description: Email de contacto
+
+    # === ESQUEMAS DE PRODUCTOS ===
+    Producto:
+      type: object
+      properties:
+        id_producto:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: "Harina Integral"
+        codigo:
+          type: string
+          example: "HAR-001"
+        categoria:
+          type: string
+          example: "Harinas"
+        unidad_medida:
+          type: string
+          example: "kg"
+        id_proveedor:
+          type: integer
+          example: 1
+        stock_actual:
+          type: number
+          format: decimal
+          example: 25.5
+        stock_minimo:
+          type: number
+          format: decimal
+          example: 10.0
+        created_at:
+          type: string
+          format: date-time
+        proveedor_nombre:
+          type: string
+          example: "Distribuidora La Fresca S.A."
+          description: Nombre del proveedor (cuando se hace JOIN)
+
+    ProductoRequest:
+      type: object
+      required: [nombre, codigo, categoria, unidad_medida, id_proveedor]
+      properties:
+        nombre:
+          type: string
+          example: "Harina Integral"
+          description: Nombre del producto
+        codigo:
+          type: string
+          example: "HAR-001"
+          description: Código único del producto
+        categoria:
+          type: string
+          example: "Harinas"
+          description: Categoría del producto
+        unidad_medida:
+          type: string
+          example: "kg"
+          description: Unidad de medida (kg, litros, unidades, etc.)
+        id_proveedor:
+          type: integer
+          example: 1
+          description: ID del proveedor
+        stock_minimo:
+          type: number
+          format: decimal
+          example: 10.0
+          description: Stock mínimo para alertas
+
+    # === ESQUEMAS DE INVENTARIO ===
+    InventarioLote:
+      type: object
+      properties:
+        id_inventario:
+          type: integer
+          example: 1
+        id_producto:
+          type: integer
+          example: 1
+        stock_actual:
+          type: number
+          format: decimal
+          example: 15.5
+        fecha_ingreso:
+          type: string
+          format: date-time
+          example: "2025-11-10T08:00:00Z"
+          description: Fecha de ingreso del lote (para FIFO)
+        fecha_caducidad:
+          type: string
+          format: date
+          example: "2025-12-15"
+          description: Fecha de caducidad del lote
+        fecha_actualizacion:
+          type: string
+          format: date-time
+          example: "2025-11-12T10:30:00Z"
+        producto:
+          type: string
+          example: "Harina Integral"
+          description: Nombre del producto (cuando se hace JOIN)
+        categoria:
+          type: string
+          example: "Harinas"
+          description: Categoría del producto (cuando se hace JOIN)
+        unidad_medida:
+          type: string
+          example: "kg"
+          description: Unidad de medida (cuando se hace JOIN)
+
+    InventarioRequest:
+      type: object
+      required: [id_producto, stock_actual]
+      properties:
+        id_producto:
+          type: integer
+          example: 1
+          description: ID del producto
+        stock_actual:
+          type: number
+          format: decimal
+          example: 20.0
+          description: Cantidad del lote
+        fecha_caducidad:
+          type: string
+          format: date
+          example: "2025-12-31"
+          description: Fecha de caducidad del lote (opcional)
+
+    InventarioFIFO:
+      type: object
+      properties:
+        producto_id:
+          type: integer
+          example: 1
+        lotes_disponibles:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventarioLote'
+        total_lotes:
+          type: integer
+          example: 3
+        stock_total:
+          type: number
+          format: decimal
+          example: 45.5
+
+    ProximoLoteFIFO:
+      type: object
+      properties:
+        id_inventario:
+          type: integer
+          example: 5
+        id_producto:
+          type: integer
+          example: 1
+        stock_actual:
+          type: number
+          format: decimal
+          example: 12.0
+        fecha_ingreso:
+          type: string
+          format: date-time
+          example: "2025-11-08T14:30:00Z"
+        fecha_caducidad:
+          type: string
+          format: date
+          example: "2025-11-25"
+        dias_en_inventario:
+          type: integer
+          example: 4
+        prioridad:
+          type: string
+          example: "USAR PRIMERO - FIFO"
+        producto:
+          type: string
+          example: "Harina Integral"
+        unidad_medida:
+          type: string
+          example: "kg"
+
+    # === ESQUEMAS DE CHECKLISTS ===
+    Checklist:
+      type: object
+      properties:
+        id_checklist:
+          type: integer
+          example: 1
+        fecha:
+          type: string
+          format: date
+          example: "2025-11-12"
+        turno:
+          type: string
+          enum: [Mañana, Tarde, Noche]
+          example: "Mañana"
+        id_usuario:
+          type: integer
+          example: 1
+        categoria:
+          type: string
+          example: "Cocina"
+        estado:
+          type: string
+          enum: [pendiente, completo]
+          example: "completo"
+        observaciones:
+          type: string
+          example: "Todo en orden"
+        creado_en:
+          type: string
+          format: date-time
+        actualizado_en:
+          type: string
+          format: date-time
+        hora_creacion:
+          type: string
+          format: time
+          example: "08:30:00"
+        usuario_nombre:
+          type: string
+          example: "Juan Pérez"
+          description: Nombre del usuario (cuando se hace JOIN)
+
+    ChecklistItem:
+      type: object
+      properties:
+        id_item:
+          type: integer
+          example: 1
+        id_checklist:
+          type: integer
+          example: 1
+        descripcion:
+          type: string
+          example: "Verificar temperatura del refrigerador"
+        resultado:
+          type: string
+          enum: [ok, no_ok, na]
+          example: "ok"
+        observacion:
+          type: string
+          example: "Temperatura correcta: 4°C"
+        creado_en:
+          type: string
+          format: date-time
+        actualizado_en:
+          type: string
+          format: date-time
+
+    ChecklistRequest:
+      type: object
+      required: [turno, items]
+      properties:
+        turno:
+          type: string
+          enum: [Mañana, Tarde, Noche]
+          example: "Mañana"
+        categoria:
+          type: string
+          example: "Cocina"
+        observaciones:
+          type: string
+          example: "Revisión rutinaria"
+        items:
+          type: array
+          items:
+            type: object
+            required: [descripcion, resultado]
+            properties:
+              descripcion:
+                type: string
+                example: "Verificar temperatura del refrigerador"
+              resultado:
+                type: string
+                enum: [ok, no_ok, na]
+                example: "ok"
+              observacion:
+                type: string
+                example: "Temperatura correcta: 4°C"
+
+    # === ESQUEMAS DE PRODUCCIÓN ===
+    Produccion:
+      type: object
+      properties:
+        id_produccion:
+          type: integer
+          example: 1
+        fecha:
+          type: string
+          format: date
+          example: "2025-11-12"
+        responsable:
+          type: string
+          example: "Juan Pérez"
+        turno:
+          type: string
+          enum: [Mañana, Tarde, Noche]
+          example: "Mañana"
+        creado_en:
+          type: string
+          format: date-time
+        hora_registro:
+          type: string
+          format: time
+          example: "10:30:00"
+
+    ProduccionDetalle:
+      type: object
+      properties:
+        id_detalle:
+          type: integer
+          example: 1
+        id_produccion:
+          type: integer
+          example: 1
+        id_producto:
+          type: integer
+          example: 1
+        cantidad:
+          type: number
+          format: decimal
+          example: 2.5
+        temp_coccion:
+          type: number
+          format: decimal
+          example: 180.0
+        hora:
+          type: string
+          format: time
+          example: "10:45:00"
+        observaciones:
+          type: string
+          example: "Cocción perfecta"
+
+    ProduccionRequest:
+      type: object
+      required: [responsable, turno, productos]
+      properties:
+        responsable:
+          type: string
+          example: "Juan Pérez"
+        turno:
+          type: string
+          enum: [Mañana, Tarde, Noche]
+          example: "Mañana"
+        productos:
+          type: array
+          items:
+            type: object
+            required: [id_producto, cantidad]
+            properties:
+              id_producto:
+                type: integer
+                example: 1
+              cantidad:
+                type: number
+                format: decimal
+                example: 2.5
+              temp_coccion:
+                type: number
+                format: decimal
+                example: 180.0
+              hora:
+                type: string
+                format: time
+                example: "10:45:00"
+              observaciones:
+                type: string
+                example: "Cocción perfecta"
+
+    # === ESQUEMAS DE ALERTAS ===
+    AlertaAutomatica:
+      type: object
+      properties:
+        tipo:
+          type: string
+          enum: [stock_bajo, caducidad_proxima, vencido, sin_stock]
+          example: "stock_bajo"
+        prioridad:
+          type: string
+          enum: [baja, media, alta, critica]
+          example: "alta"
+        titulo:
+          type: string
+          example: "Stock Bajo"
+        descripcion:
+          type: string
+          example: "Harina Integral - Stock: 5/10"
+        producto_nombre:
+          type: string
+          example: "Harina Integral"
+        stock_actual:
+          type: number
+          format: decimal
+          example: 5.0
+        stock_minimo:
+          type: number
+          format: decimal
+          example: 10.0
+        id_referencia:
+          type: integer
+          example: 1
+        fecha_generacion:
+          type: string
+          format: date-time
+        dias_para_caducidad:
+          type: integer
+          example: 2
+          description: Solo para alertas de caducidad
+
+    ConteoAlertas:
+      type: object
+      properties:
+        stock_bajo:
+          type: integer
+          example: 3
+        caducidad:
+          type: integer
+          example: 2
+        vencidos:
+          type: integer
+          example: 0
+        sin_stock:
+          type: integer
+          example: 1
+        total:
+          type: integer
+          example: 6
+
+    # === ESQUEMAS DE REPORTES ===
+    ReporteChecklists:
+      type: object
+      properties:
+        resumen:
+          type: object
+          properties:
+            total_checklists:
+              type: integer
+              example: 15
+            completos:
+              type: integer
+              example: 15
+            total_items:
+              type: integer
+              example: 120
+            items_ok:
+              type: integer
+              example: 108
+            items_no_ok:
+              type: integer
+              example: 12
+        por_fecha:
+          type: array
+          items:
+            type: object
+            properties:
+              fecha:
+                type: string
+                format: date
+                example: "2025-11-12"
+              estado:
+                type: string
+                enum: [pendiente, completo]
+                example: "completo"
+              total:
+                type: integer
+                example: 3
+        generado:
+          type: string
+          format: date-time
+          example: "2025-11-12T15:30:00Z"
+
+    ReporteStock:
+      type: object
+      properties:
+        resumen:
+          type: object
+          properties:
+            total_productos:
+              type: integer
+              example: 25
+            sin_stock:
+              type: integer
+              example: 2
+            stock_bajo:
+              type: integer
+              example: 3
+            stock_suficiente:
+              type: integer
+              example: 20
+            total_lotes:
+              type: integer
+              example: 45
+            lotes_vencidos:
+              type: integer
+              example: 1
+            lotes_por_vencer:
+              type: integer
+              example: 3
+        productos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Producto'
+        generado:
+          type: string
+          format: date-time
+
+    # === ESQUEMA GENÉRICO DE ERROR ===
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Mensaje de error descriptivo"
+        details:
+          type: string
+          example: "Detalles adicionales del error"
+          description: Detalles opcionales del error
+
+    Success:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Operación exitosa"
+        data:
+          type: object
+          description: Datos de respuesta específicos según el endpoint
+
+# === DEFINICIÓN DE ENDPOINTS ===
+paths:
+  # === AUTENTICACIÓN ===
+  /api/auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión y obtener token JWT
+      description: |
+        **Autentica usuario y obtiene token JWT para autorizar el acceso a los demás endpoints.**
+        
+        ## INSTRUCCIONES:
+        1. **Seleccionar credenciales de prueba** (ver ejemplos disponibles)
+        2. **Ejecutar endpoint** 
+        3. **Copiar el token** de la respuesta
+        4. **Autorizar API** utilizando el botón "Authorize"
+        5. **Acceder a todos los endpoints** sin restricciones
+        
+        ## USUARIOS DISPONIBLES:
+        - **Administrador:** admin@apt.com / admin123 (acceso total)
+        - **Cocinero:** cocinero@apt.com / cocinero123 (producción)  
+        - **Auditor:** auditor@apt.com / auditor123 (auditoría)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              admin:
+                summary: Administrador (acceso completo)
+                description: Usuario con permisos completos para todo el sistema
+                value:
+                  email: "admin@apt.com"
+                  password: "admin123"
+              cocinero:
+                summary: Cocinero (producción e inventario)
+                description: Usuario para gestión de inventario y producción
+                value:
+                  email: "cocinero@apt.com" 
+                  password: "cocinero123"
+              auditor:
+                summary: Auditor (auditoría y reportes)
+                description: Usuario para auditoría y generación de reportes
+                value:
+                  email: "auditor@apt.com"
+                  password: "auditor123"
+      responses:
+        '200':
+          description: |
+            **LOGIN EXITOSO**
+            
+            **SIGUIENTE PASO:** 
+            1. **Copiar el token** de la respuesta
+            2. **Hacer clic en "Authorize"** (botón superior)
+            3. **Ingresar el token** y confirmar autorización
+            4. **Utilizar cualquier endpoint** sin restricciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                admin_success:
+                  summary: Respuesta exitosa - Admin
+                  value:
+                    message: "Login exitoso"
+                    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c3VhcmlvIjoxLCJlbWFpbCI6ImFkbWluQGFwdC5jb20iLCJyb2wiOiJhZG1pbiJ9.TOKEN_COMPLETO_PARA_COPIAR"
+                    user:
+                      id_usuario: 1
+                      nombre: "Administrador APT"
+                      email: "admin@apt.com"
+                      rol: "admin"
+        '401':
+          description: "Credenciales incorrectas - Verificar email y password"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Credenciales inválidas"
+                message: "Email o password incorrectos"
+        '400':
+          description: "Datos faltantes - Email y password son requeridos"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Datos de entrada inválidos"
+                message: "Email y password son requeridos"
+
+  /api/auth/register:
+    post:
+      tags: [Autenticación]
+      summary: Registrar nuevo usuario
+      description: Crear una nueva cuenta de usuario (solo admin puede crear usuarios)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuario creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '400':
+          description: Datos inválidos o email ya existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para crear usuarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/usuario:
+    get:
+      tags: [Autenticación]
+      summary: Obtener datos del usuario autenticado
+      description: Recuperar información del usuario actual usando el token JWT
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Datos del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '401':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # === PROVEEDORES ===
+  /api/proveedores:
+    get:
+      tags: [Proveedores]
+      summary: Listar todos los proveedores
+      description: Obtener lista completa de proveedores registrados
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de proveedores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Proveedor'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para ver proveedores
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags: [Proveedores]
+      summary: Crear nuevo proveedor
+      description: Registrar un nuevo proveedor en el sistema
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProveedorRequest'
+      responses:
+        '201':
+          description: Proveedor creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Proveedor creado exitosamente"
+                  proveedor:
+                    $ref: '#/components/schemas/Proveedor'
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para crear proveedores
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/proveedores/{id}:
+    put:
+      tags: [Proveedores]
+      summary: Actualizar proveedor
+      description: Modificar datos de un proveedor existente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del proveedor
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProveedorRequest'
+      responses:
+        '200':
+          description: Proveedor actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '404':
+          description: Proveedor no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para actualizar proveedores
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Proveedores]
+      summary: Eliminar proveedor
+      description: Eliminar un proveedor del sistema (solo si no tiene productos asociados)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del proveedor
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Proveedor eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '404':
+          description: Proveedor no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: No se puede eliminar proveedor con productos asociados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para eliminar proveedores (solo admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # === PRODUCTOS ===
+  /api/productos:
+    get:
+      tags: [Productos]
+      summary: Listar todos los productos
+      description: Obtener lista completa de productos con información de proveedor
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Producto'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para ver productos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags: [Productos]
+      summary: Crear nuevo producto
+      description: Registrar un nuevo producto en el catálogo
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductoRequest'
+      responses:
+        '201':
+          description: Producto creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Producto creado exitosamente"
+                  producto:
+                    $ref: '#/components/schemas/Producto'
+        '400':
+          description: Datos inválidos o código ya existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para crear productos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/productos/{id}:
+    put:
+      tags: [Productos]
+      summary: Actualizar producto
+      description: Modificar datos de un producto existente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del producto
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductoRequest'
+      responses:
+        '200':
+          description: Producto actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '404':
+          description: Producto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para actualizar productos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Productos]
+      summary: Eliminar producto
+      description: Eliminar un producto del catálogo (solo admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del producto
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Producto eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '404':
+          description: Producto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: No se puede eliminar producto con inventario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para eliminar productos (solo admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # === INVENTARIO ===
+  /api/inventario:
+    get:
+      tags: [Inventario]
+      summary: Listar inventario completo (ordenado por FIFO)
+      description: Lista todos los lotes de inventario ordenados por fecha de ingreso (FIFO - First In, First Out)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de inventario ordenada por FIFO
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventarioLote'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para ver inventario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags: [Inventario]
+      summary: Crear nuevo lote de inventario
+      description: Registrar un nuevo lote de producto en el inventario
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventarioRequest'
+      responses:
+        '201':
+          description: Lote de inventario creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Inventario creado"
+                  inventario:
+                    $ref: '#/components/schemas/InventarioLote'
+        '400':
+          description: Datos inválidos o stock debe ser mayor a 0
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para crear inventario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/inventario/fifo/{id_producto}:
+    get:
+      tags: [Inventario]
+      summary: Obtener inventario FIFO por producto
+      description: Lista todos los lotes disponibles de un producto específico ordenados por FIFO
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id_producto
+          in: path
+          required: true
+          description: ID del producto
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Inventario FIFO del producto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventarioFIFO'
+        '404':
+          description: Producto no encontrado o sin inventario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/inventario/proximo/{id_producto}:
+    get:
+      tags: [Inventario]
+      summary: Obtener próximo lote a usar (FIFO)
+      description: Obtiene el lote más antiguo disponible para usar siguiendo el método FIFO
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id_producto
+          in: path
+          required: true
+          description: ID del producto
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Próximo lote a usar según FIFO
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProximoLoteFIFO'
+        '404':
+          description: No hay stock disponible para este producto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/inventario/{id}:
+    put:
+      tags: [Inventario]
+      summary: Actualizar lote de inventario
+      description: Modificar stock y fecha de caducidad de un lote específico
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del inventario (lote)
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stock_actual:
+                  type: number
+                  format: decimal
+                  example: 15.0
+                fecha_caducidad:
+                  type: string
+                  format: date
+                  example: "2025-12-31"
+      responses:
+        '200':
+          description: Inventario actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Inventario actualizado"
+                  inventario:
+                    $ref: '#/components/schemas/InventarioLote'
+        '404':
+          description: Lote no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para actualizar inventario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Inventario]
+      summary: Eliminar lote de inventario
+      description: Eliminar un lote específico del inventario (solo admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del inventario (lote)
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Lote eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Inventario eliminado"
+        '404':
+          description: Lote no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para eliminar inventario (solo admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # === CHECKLISTS ===
+  /api/checklists:
+    get:
+      tags: [Checklists]
+      summary: Listar todos los checklists
+      description: Obtener lista completa de checklists con información del usuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fecha
+          in: query
+          description: Filtrar por fecha específica
+          schema:
+            type: string
+            format: date
+            example: "2025-11-12"
+        - name: turno
+          in: query
+          description: Filtrar por turno
+          schema:
+            type: string
+            enum: [Mañana, Tarde, Noche]
+            example: "Mañana"
+        - name: estado
+          in: query
+          description: Filtrar por estado
+          schema:
+            type: string
+            enum: [pendiente, completo]
+            example: "completo"
+      responses:
+        '200':
+          description: Lista de checklists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Checklist'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para ver checklists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags: [Checklists]
+      summary: Crear nuevo checklist
+      description: Crear un nuevo checklist con sus items correspondientes
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChecklistRequest'
+      responses:
+        '201':
+          description: Checklist creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Checklist creado exitosamente"
+                  checklist_id:
+                    type: integer
+                    example: 15
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para crear checklists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/checklists/{id}:
+    put:
+      tags: [Checklists]
+      summary: Actualizar checklist
+      description: Actualizar un checklist existente y sus items
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del checklist
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                estado:
+                  type: string
+                  enum: [pendiente, completo]
+                  example: "completo"
+                observaciones:
+                  type: string
+                  example: "Revisión completada"
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id_item:
+                        type: integer
+                        example: 1
+                      resultado:
+                        type: string
+                        enum: [ok, no_ok, na]
+                        example: "ok"
+                      observacion:
+                        type: string
+                        example: "Todo correcto"
+      responses:
+        '200':
+          description: Checklist actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '404':
+          description: Checklist no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para actualizar checklist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/checklists/{id}/items:
+    get:
+      tags: [Checklists]
+      summary: Listar items de un checklist
+      description: Obtener todos los items de un checklist específico
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del checklist
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Lista de items del checklist
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChecklistItem'
+        '404':
+          description: Checklist no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/checklists/{id}/revisar:
+    put:
+      tags: [Checklists]
+      summary: Revisar checklist (auditoría)
+      description: Realizar revisión de auditoría sobre un checklist (solo auditor y admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del checklist
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                observaciones_auditoria:
+                  type: string
+                  example: "Revisión de auditoría completada"
+      responses:
+        '200':
+          description: Checklist revisado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '404':
+          description: Checklist no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos de auditoría
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/checklists/pendientes/auditoria:
+    get:
+      tags: [Checklists]
+      summary: Checklists pendientes de auditoría
+      description: Obtener checklists que requieren revisión de auditoría (solo auditor y admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de checklists pendientes de auditoría
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Checklist'
+        '403':
+          description: Sin permisos de auditoría
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/checklists/estadisticas/auditoria:
+    get:
+      tags: [Checklists]
+      summary: Estadísticas de auditoría
+      description: Obtener estadísticas de auditoría de checklists (solo auditor y admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Estadísticas de auditoría
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_revisados:
+                    type: integer
+                    example: 25
+                  pendientes_revision:
+                    type: integer
+                    example: 3
+                  cumplimiento_promedio:
+                    type: number
+                    format: decimal
+                    example: 92.5
+        '403':
+          description: Sin permisos de auditoría
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # === PRODUCCIÓN ===
+  /api/produccion:
+    get:
+      tags: [Producción]
+      summary: Listar registros de producción
+      description: Obtener historial de producción con detalles de productos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fecha
+          in: query
+          description: Filtrar por fecha específica
+          schema:
+            type: string
+            format: date
+            example: "2025-11-12"
+        - name: turno
+          in: query
+          description: Filtrar por turno
+          schema:
+            type: string
+            enum: [Mañana, Tarde, Noche]
+            example: "Mañana"
+      responses:
+        '200':
+          description: Lista de registros de producción
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Produccion'
+                    - type: object
+                      properties:
+                        productos:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/ProduccionDetalle'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para ver producción
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags: [Producción]
+      summary: Registrar nueva producción
+      description: Crear un nuevo registro de producción con detalles de productos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProduccionRequest'
+      responses:
+        '201':
+          description: Producción registrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Producción registrada exitosamente"
+                  id_produccion:
+                    type: integer
+                    example: 5
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para registrar producción
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # === ALERTAS AUTOMÁTICAS ===
+  /api/alertas-automaticas:
+    get:
+      tags: [Alertas Automáticas]
+      summary: Obtener todas las alertas automáticas
+      description: Genera y devuelve alertas automáticas en tiempo real basadas en stock, caducidad y vencimientos
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de alertas automáticas generadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alertas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AlertaAutomatica'
+                  resumen:
+                    $ref: '#/components/schemas/ConteoAlertas'
+                  generadas_en:
+                    type: string
+                    format: date-time
+                    example: "2025-11-12T15:30:00Z"
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para ver alertas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/alertas-automaticas/conteo:
+    get:
+      tags: [Alertas Automáticas]
+      summary: Conteo de alertas automáticas
+      description: Obtener solo el conteo de alertas por tipo (para dashboard)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Conteo de alertas por tipo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConteoAlertas'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # === REPORTES ===
+  /api/reportes/checklists:
+    get:
+      tags: [Reportes]
+      summary: Reporte de checklists
+      description: Generar reporte estadístico de checklists en formato JSON o PDF
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: formato
+          in: query
+          description: Formato del reporte
+          schema:
+            type: string
+            enum: [json, pdf]
+            default: json
+            example: "json"
+        - name: fecha_desde
+          in: query
+          description: Fecha de inicio para el filtro
+          schema:
+            type: string
+            format: date
+            example: "2025-11-01"
+        - name: fecha_hasta
+          in: query
+          description: Fecha de fin para el filtro
+          schema:
+            type: string
+            format: date
+            example: "2025-11-30"
+      responses:
+        '200':
+          description: Reporte de checklists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteChecklists'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: Archivo PDF del reporte
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para generar reportes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/reportes/stock:
+    get:
+      tags: [Reportes]
+      summary: Reporte de stock
+      description: Generar reporte completo del estado del inventario en formato JSON o PDF
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: formato
+          in: query
+          description: Formato del reporte
+          schema:
+            type: string
+            enum: [json, pdf]
+            default: json
+            example: "json"
+      responses:
+        '200':
+          description: Reporte de stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteStock'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: Archivo PDF del reporte
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para generar reportes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/reportes/alertas:
+    get:
+      tags: [Reportes]
+      summary: Reporte de alertas
+      description: Generar reporte completo de todas las alertas del sistema en formato JSON o PDF
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: formato
+          in: query
+          description: Formato del reporte
+          schema:
+            type: string
+            enum: [json, pdf]
+            default: json
+            example: "json"
+      responses:
+        '200':
+          description: Reporte de alertas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resumen:
+                    $ref: '#/components/schemas/ConteoAlertas'
+                  alertas:
+                    type: object
+                    properties:
+                      sin_stock:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Producto'
+                      stock_bajo:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Producto'
+                      caducidad_proxima:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InventarioLote'
+                      vencidos:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InventarioLote'
+                  generado:
+                    type: string
+                    format: date-time
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: Archivo PDF del reporte
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permisos para generar reportes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

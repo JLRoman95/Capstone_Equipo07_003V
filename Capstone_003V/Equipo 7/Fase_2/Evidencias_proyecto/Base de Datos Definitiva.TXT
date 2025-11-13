@@ -1,0 +1,243 @@
+-- =====================================================
+-- 1. TABLAS PRINCIPALES
+-- =====================================================
+
+-- Tabla usuarios (base del sistema)
+CREATE TABLE IF NOT EXISTS usuarios (
+  id_usuario SERIAL PRIMARY KEY,
+  nombre VARCHAR(100) NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  rol VARCHAR(50) NOT NULL CHECK (rol IN ('admin', 'cocinero', 'auditor')),
+  activo BOOLEAN DEFAULT TRUE,
+  creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla proveedores
+CREATE TABLE IF NOT EXISTS proveedores (
+    id_proveedor SERIAL PRIMARY KEY,
+    nombre VARCHAR(150) NOT NULL,
+    contacto VARCHAR(150) NOT NULL,
+    telefono VARCHAR(50) NOT NULL CHECK (telefono ~ '^\+?[0-9]+$'),
+    email VARCHAR(100) NOT NULL UNIQUE CHECK (email ~ '^[^@]+@[^@]+\.[^@]+$'),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla productos
+CREATE TABLE IF NOT EXISTS productos (
+    id_producto SERIAL PRIMARY KEY,
+    nombre VARCHAR(150) NOT NULL,
+    codigo VARCHAR(50) UNIQUE NOT NULL,
+    categoria VARCHAR(100) NOT NULL,
+    unidad_medida VARCHAR(50) NOT NULL,
+    id_proveedor INTEGER NOT NULL REFERENCES proveedores(id_proveedor) ON DELETE RESTRICT,
+    stock_actual NUMERIC DEFAULT 0,
+    stock_minimo NUMERIC DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =====================================================
+-- 2. INVENTARIO (GESTIÓN DE LOTES)
+-- =====================================================
+
+-- Tabla inventario (lotes de productos)
+CREATE TABLE IF NOT EXISTS inventario (
+    id_inventario SERIAL PRIMARY KEY,
+    id_producto INTEGER NOT NULL REFERENCES productos(id_producto) ON DELETE RESTRICT,
+    stock_actual NUMERIC NOT NULL DEFAULT 0 CHECK (stock_actual >= 0),
+    fecha_ingreso TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    fecha_caducidad DATE,
+    fecha_actualizacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =====================================================
+-- 3. CHECKLISTS Y CONTROL DE CALIDAD
+-- =====================================================
+
+-- Tabla template de items para checklists
+CREATE TABLE IF NOT EXISTS checklist_template_items (
+  id_template_item SERIAL PRIMARY KEY,
+  descripcion TEXT NOT NULL,
+  activo BOOLEAN DEFAULT TRUE
+);
+
+-- Tabla checklists
+CREATE TABLE IF NOT EXISTS checklists (
+    id_checklist SERIAL PRIMARY KEY,
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+    turno VARCHAR(20) NOT NULL CHECK (turno IN ('Mañana','Tarde','Noche')),
+    id_usuario INTEGER NOT NULL REFERENCES usuarios(id_usuario) ON DELETE RESTRICT,
+    categoria VARCHAR(100) NOT NULL DEFAULT 'Cocina',
+    estado VARCHAR(20) NOT NULL CHECK (estado IN ('pendiente','completo')) DEFAULT 'pendiente',
+    observaciones TEXT,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    hora_creacion TIME DEFAULT CURRENT_TIME
+);
+
+-- Tabla items de checklist
+CREATE TABLE IF NOT EXISTS checklist_items (
+    id_item SERIAL PRIMARY KEY,
+    id_checklist INTEGER NOT NULL REFERENCES checklists(id_checklist) ON DELETE CASCADE,
+    descripcion VARCHAR(200) NOT NULL,
+    resultado VARCHAR(20) NOT NULL CHECK (resultado IN ('ok','no_ok','na')),
+    observacion TEXT,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =====================================================
+-- 4. PRODUCCIÓN DE ALIMENTOS
+-- =====================================================
+
+-- Tabla producción de alimentos (encabezado)
+CREATE TABLE IF NOT EXISTS produccion_alimentos (
+  id_produccion SERIAL PRIMARY KEY,
+  fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+  responsable VARCHAR(100) NOT NULL,
+  turno VARCHAR(20) NOT NULL CHECK (turno IN ('Mañana','Tarde','Noche')),
+  creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  hora_registro TIME DEFAULT CURRENT_TIME
+);
+
+-- Tabla detalle de producción
+CREATE TABLE IF NOT EXISTS produccion_detalle (
+  id_detalle SERIAL PRIMARY KEY,
+  id_produccion INTEGER NOT NULL REFERENCES produccion_alimentos(id_produccion) ON DELETE CASCADE,
+  id_producto INTEGER NOT NULL REFERENCES productos(id_producto) ON DELETE RESTRICT,
+  cantidad NUMERIC NOT NULL CHECK (cantidad > 0),
+  temp_coccion NUMERIC,
+  hora TIME,
+  observaciones TEXT
+);
+
+-- =====================================================
+-- 5. ÍNDICES PARA OPTIMIZACIÓN
+-- =====================================================
+
+-- Índices principales para productos y proveedores
+CREATE INDEX IF NOT EXISTS idx_productos_proveedor ON productos(id_proveedor);
+CREATE INDEX IF NOT EXISTS idx_productos_stock ON productos(stock_actual, stock_minimo);
+CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos(categoria);
+
+-- Índices para inventario
+CREATE INDEX IF NOT EXISTS idx_inventario_producto ON inventario(id_producto);
+CREATE INDEX IF NOT EXISTS idx_inventario_caducidad ON inventario(fecha_caducidad);
+CREATE INDEX IF NOT EXISTS idx_inventario_stock ON inventario(stock_actual);
+
+-- Índices para checklists
+CREATE INDEX IF NOT EXISTS idx_checklists_usuario ON checklists(id_usuario);
+CREATE INDEX IF NOT EXISTS idx_checklists_fecha ON checklists(fecha);
+CREATE INDEX IF NOT EXISTS idx_checklists_turno ON checklists(turno);
+CREATE INDEX IF NOT EXISTS idx_checklists_estado ON checklists(estado);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(id_checklist);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_resultado ON checklist_items(resultado);
+
+-- Índices para producción
+CREATE INDEX IF NOT EXISTS idx_produccion_fecha ON produccion_alimentos(fecha);
+CREATE INDEX IF NOT EXISTS idx_produccion_turno ON produccion_alimentos(turno);
+CREATE INDEX IF NOT EXISTS idx_produccion_detalle_produccion ON produccion_detalle(id_produccion);
+CREATE INDEX IF NOT EXISTS idx_produccion_detalle_producto ON produccion_detalle(id_producto);
+
+-- Índices para usuarios
+CREATE INDEX IF NOT EXISTS idx_usuarios_rol ON usuarios(rol);
+CREATE INDEX IF NOT EXISTS idx_usuarios_activo ON usuarios(activo);
+
+-- =====================================================
+-- 6. TRIGGERS PARA MANTENER CONSISTENCIA
+-- =====================================================
+
+-- Función para actualizar timestamps automáticamente
+CREATE OR REPLACE FUNCTION update_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.actualizado_en = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger para actualizar fecha de modificación en checklists
+CREATE TRIGGER trg_update_checklist_timestamp
+    BEFORE UPDATE ON checklists
+    FOR EACH ROW
+    EXECUTE FUNCTION update_timestamp();
+
+-- Trigger para actualizar fecha de modificación en checklist_items
+CREATE TRIGGER trg_update_checklist_items_timestamp
+    BEFORE UPDATE ON checklist_items
+    FOR EACH ROW
+    EXECUTE FUNCTION update_timestamp();
+
+-- Función para actualizar inventario
+CREATE OR REPLACE FUNCTION update_inventario_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.fecha_actualizacion = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger para actualizar fecha de modificación en inventario
+CREATE TRIGGER trg_update_inventario_timestamp
+    BEFORE UPDATE ON inventario
+    FOR EACH ROW
+    EXECUTE FUNCTION update_inventario_timestamp();
+
+-- =====================================================
+-- 7. DATOS INICIALES
+-- =====================================================
+
+-- Insertar items predefinidos para checklists
+INSERT INTO checklist_template_items (descripcion) 
+VALUES 
+    ('Mesas de trabajo'),
+    ('Cuchillos y utensilios'),
+    ('Lavaplatos / fregadero'),
+    ('Refrigeradores / Freezer'),
+    ('Suelo / paredes / drenajes'),
+    ('Campana extractora'),
+    ('Basureros / contenedores')
+ON CONFLICT DO NOTHING;
+
+-- =====================================================
+-- 8. COMENTARIOS PARA DOCUMENTACIÓN
+-- =====================================================
+
+COMMENT ON TABLE usuarios IS 'Usuarios del sistema con roles específicos (admin, cocinero, auditor)';
+COMMENT ON TABLE proveedores IS 'Catálogo de proveedores de insumos alimentarios';
+COMMENT ON TABLE productos IS 'Catálogo maestro de productos/insumos con control de stock';
+COMMENT ON TABLE inventario IS 'Lotes de inventario por producto con gestión FIFO y fechas de caducidad';
+COMMENT ON TABLE checklist_template_items IS 'Plantilla de items estándar para checklists de limpieza';
+COMMENT ON TABLE checklists IS 'Checklists de control de calidad por turno de trabajo';
+COMMENT ON TABLE checklist_items IS 'Items individuales evaluados en cada checklist';
+COMMENT ON TABLE produccion_alimentos IS 'Registro de sesiones de producción de alimentos por turno';
+COMMENT ON TABLE produccion_detalle IS 'Detalle de productos elaborados en cada sesión de producción';
+
+-- =====================================================
+-- 9. VERIFICACIÓN Y RESUMEN
+-- =====================================================
+
+-- Mensaje de confirmación
+SELECT 'Schema optimizado creado exitosamente - 9 tablas esenciales' as resultado;
+
+-- Resumen de tablas creadas
+SELECT 
+    schemaname, 
+    tablename, 
+    CASE 
+        WHEN tablename LIKE '%usuarios%' THEN 'Sistema de autenticación'
+        WHEN tablename LIKE '%proveedores%' THEN 'Gestión de proveedores'
+        WHEN tablename LIKE '%productos%' THEN 'Catálogo de productos'
+        WHEN tablename LIKE '%inventario%' THEN 'Control de inventario'
+        WHEN tablename LIKE '%checklist%' THEN 'Control de calidad'
+        WHEN tablename LIKE '%produccion%' THEN 'Gestión de producción'
+        ELSE 'Otras funcionalidades'
+    END as categoria
+FROM pg_tables 
+WHERE schemaname = 'public' 
+    AND tablename IN (
+        'usuarios', 'proveedores', 'productos', 'inventario',
+        'checklist_template_items', 'checklists', 'checklist_items',
+        'produccion_alimentos', 'produccion_detalle'
+    )
+ORDER BY categoria, tablename;

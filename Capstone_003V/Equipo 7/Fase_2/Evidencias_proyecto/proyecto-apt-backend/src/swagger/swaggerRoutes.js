@@ -7,8 +7,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Carga correcta del archivo YAML
-const swaggerDocument = YAML.load(path.join(__dirname, 'swaggerDocs.yaml'));
+// Carga de la documentación corregida y actualizada
+const swaggerDocument = YAML.load(path.join(__dirname, 'swaggerDocsCorrect.yaml'));
 
 export const setupSwagger = (app) => {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));

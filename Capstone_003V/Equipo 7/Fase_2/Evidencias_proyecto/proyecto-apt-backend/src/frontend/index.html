@@ -78,6 +78,7 @@
   </header>
 
   <main>
+    <button id="dashboardBtn" onclick="irA('dashboard.html')" style="display: none;">📊 Dashboard</button>
     <button onclick="irA('inventario.html')">📦 Inventario</button>
     <button onclick="irA('produccionAlimentos.html')">⚙️ Producción</button>
     <button onclick="irA('historialProduccion.html')">📊 Historial Producción</button>
@@ -85,6 +86,7 @@
     <button onclick="irA('limpieza.html')">🧹 Checklist Limpieza</button>
     <button onclick="irA('alertas.html')">🚨 Alertas</button>
     <button onclick="irA('proveedores.html')">📝 Proveedores</button>
+    <button id="crearUsuarioBtn" onclick="irA('crear_usuario.html')" style="display: none;">👤 Crear Usuario</button>
     <button class="logout" onclick="cerrarSesion()">Cerrar sesión</button>
   </main>
 
@@ -97,6 +99,16 @@
     } else {
       document.getElementById('nombreUsuario').textContent = `Bienvenido, ${usuario.nombre}`;
       document.getElementById('rolUsuario').textContent = `Rol: ${usuario.rol}`;
+      
+      // Mostrar dashboard solo para admin y auditor
+      if (['admin', 'auditor'].includes(usuario.rol)) {
+        document.getElementById('dashboardBtn').style.display = 'block';
+      }
+      
+      // Mostrar botón crear usuario solo para admin
+      if (usuario.rol === 'admin') {
+        document.getElementById('crearUsuarioBtn').style.display = 'block';
+      }
     }
 
     function irA(pagina) {
