@@ -1,0 +1,369 @@
+/* ============================================
+   ESTILOS RESPONSIVOS ADICIONALES
+   Sistema APT - Responsive Design
+   ============================================ */
+
+/* Wrapper para tablas responsivas */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1.5rem;
+}
+
+/* Estilos para header responsivo */
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Estilos para sección de acciones */
+.actions-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.actions-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Grid responsivo para módulos del dashboard */
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+/* Stats grid responsivo */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+/* ============================================
+   MOBILE FIRST - MAX 480PX
+   ============================================ */
+@media only screen and (max-width: 480px) {
+  /* Header mobile */
+  .header-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* Acciones mobile */
+  .actions-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions-buttons {
+    width: 100%;
+  }
+
+  .actions-buttons button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Grid mobile */
+  .modules-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  /* Botones más grandes para touch */
+  button,
+  .btn {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+  }
+
+  /* Inputs más grandes */
+  input,
+  select,
+  textarea,
+  .input {
+    min-height: 44px;
+    font-size: 16px; /* Prevenir zoom en iOS */
+  }
+
+  /* Modal fullscreen en mobile */
+  .modal {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  /* Ocultar texto de botones, solo iconos */
+  .btn-text {
+    display: none;
+  }
+
+  /* Cards más compactas */
+  .card {
+    padding: 0.875rem;
+  }
+
+  /* Alertas más compactas */
+  .alert {
+    padding: 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* ============================================
+   MOBILE LANDSCAPE - 481-767PX
+   ============================================ */
+@media only screen and (min-width: 481px) and (max-width: 767px) {
+  .modules-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .actions-section {
+    flex-direction: row;
+  }
+
+  .btn-text {
+    display: inline; /* Mostrar texto en pantallas medianas */
+  }
+}
+
+/* ============================================
+   TABLET - 768-1024PX
+   ============================================ */
+@media only screen and (min-width: 768px) and (max-width: 1024px) {
+  .modules-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .header-container {
+    flex-direction: row;
+  }
+
+  .actions-section {
+    flex-direction: row;
+  }
+
+  /* Tablas más espaciosas */
+  .table th,
+  .table td {
+    padding: 0.75rem 0.5rem;
+  }
+}
+
+/* ============================================
+   LAPTOP PEQUEÑO - 1025-1280PX
+   ============================================ */
+@media only screen and (min-width: 1025px) and (max-width: 1280px) {
+  .modules-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ============================================
+   DESKTOP - 1281PX+
+   ============================================ */
+@media only screen and (min-width: 1281px) {
+  .modules-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+
+  /* Efectos hover solo en desktop */
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  button:hover:not(:disabled),
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* ============================================
+   TOUCH DEVICES
+   ============================================ */
+@media (hover: none) and (pointer: coarse) {
+  /* Desactivar hover en touch */
+  .card:hover,
+  .btn:hover {
+    transform: none !important;
+  }
+
+  /* Aumentar área táctil */
+  button,
+  .btn,
+  a,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Mejorar feedback táctil */
+  button:active,
+  .btn:active {
+    opacity: 0.7;
+  }
+}
+
+/* ============================================
+   LANDSCAPE MODE EN MÓVILES
+   ============================================ */
+@media only screen and (max-height: 500px) and (orientation: landscape) {
+  .modal {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .header-container {
+    padding: 0.5rem 0;
+  }
+
+  h1 {
+    font-size: 1.25rem !important;
+  }
+
+  h2 {
+    font-size: 1.125rem !important;
+  }
+}
+
+/* ============================================
+   UTILIDADES RESPONSIVAS
+   ============================================ */
+
+/* Ocultar en mobile */
+.hide-mobile {
+  display: block;
+}
+
+@media only screen and (max-width: 767px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Mostrar solo en mobile */
+.show-mobile {
+  display: none;
+}
+
+@media only screen and (max-width: 767px) {
+  .show-mobile {
+    display: block !important;
+  }
+}
+
+/* Ocultar en tablet */
+.hide-tablet {
+  display: block;
+}
+
+@media only screen and (min-width: 768px) and (max-width: 1024px) {
+  .hide-tablet {
+    display: none !important;
+  }
+}
+
+/* Mostrar solo en tablet */
+.show-tablet {
+  display: none;
+}
+
+@media only screen and (min-width: 768px) and (max-width: 1024px) {
+  .show-tablet {
+    display: block !important;
+  }
+}
+
+/* Ocultar en desktop */
+.hide-desktop {
+  display: block;
+}
+
+@media only screen and (min-width: 1025px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
+
+/* Mostrar solo en desktop */
+.show-desktop {
+  display: none;
+}
+
+@media only screen and (min-width: 1025px) {
+  .show-desktop {
+    display: block !important;
+  }
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+@media print {
+  .hide-print {
+    display: none !important;
+  }
+
+  .modules-grid,
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .card {
+    page-break-inside: avoid;
+  }
+}

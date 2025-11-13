@@ -1,0 +1,415 @@
+/**
+ * Servicio de Exportación a PDF
+ * Permite exportar reportes y registros en formato PDF
+ */
+
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// Configuración de fuente para español
+const configurarPDF = (doc, titulo) => {
+  // Encabezado
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text(titulo, 105, 20, { align: 'center' });
+  
+  // Fecha de generación
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  const fecha = new Date().toLocaleDateString('es-CL', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  doc.text(`Generado: ${fecha}`, 105, 28, { align: 'center' });
+  
+  return 35; // Posición Y donde empieza el contenido
+};
+
+/**
+ * Exportar lista de proveedores a PDF
+ */
+export const exportarProveedoresPDF = (proveedores) => {
+  const doc = new jsPDF();
+  const startY = configurarPDF(doc, 'Reporte de Proveedores');
+  
+  const tableData = proveedores.map(p => [
+    p.nombre,
+    p.contacto,
+    p.telefono,
+    p.email,
+    p.direccion || 'N/A'
+  ]);
+  
+  doc.autoTable({
+    startY,
+    head: [['Nombre', 'Contacto', 'Teléfono', 'Email', 'Dirección']],
+    body: tableData,
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    margin: { top: 35, left: 14, right: 14 }
+  });
+  
+  // Pie de página
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+    doc.text('Sistema APT - Control de Cocina', 105, 290, { align: 'center' });
+  }
+  
+  doc.save('proveedores.pdf');
+};
+
+/**
+ * Exportar lista de productos a PDF
+ */
+export const exportarProductosPDF = (productos) => {
+  const doc = new jsPDF();
+  const startY = configurarPDF(doc, 'Catálogo de Productos');
+  
+  const tableData = productos.map(p => [
+    p.codigo_producto,
+    p.nombre,
+    p.categoria,
+    p.unidad_medida,
+    `$${p.precio_unitario.toLocaleString('es-CL')}`
+  ]);
+  
+  doc.autoTable({
+    startY,
+    head: [['Código', 'Nombre', 'Categoría', 'Unidad', 'Precio']],
+    body: tableData,
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [46, 204, 113], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: {
+      4: { halign: 'right' }
+    },
+    margin: { top: 35, left: 14, right: 14 }
+  });
+  
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+    doc.text('Sistema APT - Control de Cocina', 105, 290, { align: 'center' });
+  }
+  
+  doc.save('productos.pdf');
+};
+
+/**
+ * Exportar inventario a PDF
+ */
+export const exportarInventarioPDF = (inventario) => {
+  const doc = new jsPDF('landscape'); // Horizontal para más columnas
+  const startY = configurarPDF(doc, 'Reporte de Inventario');
+  
+  const tableData = inventario.map(item => {
+    const diasRestantes = Math.ceil(
+      (new Date(item.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24)
+    );
+    
+    return [
+      item.codigo_producto,
+      item.lote,
+      item.cantidad_unidades,
+      new Date(item.fecha_ingreso).toLocaleDateString('es-CL'),
+      new Date(item.fecha_vencimiento).toLocaleDateString('es-CL'),
+      diasRestantes > 0 ? `${diasRestantes} días` : 'VENCIDO',
+      item.estado
+    ];
+  });
+  
+  doc.autoTable({
+    startY,
+    head: [['Código', 'Lote', 'Cantidad', 'F. Ingreso', 'F. Vencimiento', 'Días Rest.', 'Estado']],
+    body: tableData,
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [230, 126, 34], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: {
+      2: { halign: 'center' },
+      3: { halign: 'center' },
+      4: { halign: 'center' },
+      5: { halign: 'center' },
+      6: { halign: 'center' }
+    },
+    didParseCell: function(data) {
+      // Colorear filas según días restantes
+      if (data.section === 'body' && data.column.index === 5) {
+        const diasText = data.cell.raw;
+        if (diasText === 'VENCIDO') {
+          data.cell.styles.textColor = [231, 76, 60];
+          data.cell.styles.fontStyle = 'bold';
+        } else {
+          const dias = parseInt(diasText);
+          if (dias <= 3) {
+            data.cell.styles.textColor = [231, 76, 60];
+          } else if (dias <= 7) {
+            data.cell.styles.textColor = [243, 156, 18];
+          }
+        }
+      }
+    },
+    margin: { top: 35, left: 14, right: 14 }
+  });
+  
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(`Página ${i} de ${pageCount}`, 148, 200, { align: 'center' });
+    doc.text('Sistema APT - Control de Cocina', 148, 205, { align: 'center' });
+  }
+  
+  doc.save('inventario.pdf');
+};
+
+/**
+ * Exportar producción a PDF
+ */
+export const exportarProduccionPDF = (produccion) => {
+  const doc = new jsPDF();
+  const startY = configurarPDF(doc, 'Reporte de Producción');
+  
+  const tableData = produccion.map(p => [
+    new Date(p.fecha).toLocaleDateString('es-CL'),
+    p.turno,
+    p.responsable,
+    p.plato,
+    p.cantidad
+  ]);
+  
+  // Calcular totales
+  const totalPorciones = produccion.reduce((sum, p) => sum + p.cantidad, 0);
+  
+  doc.autoTable({
+    startY,
+    head: [['Fecha', 'Turno', 'Responsable', 'Plato', 'Cantidad']],
+    body: tableData,
+    foot: [['', '', '', 'TOTAL', totalPorciones]],
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [155, 89, 182], textColor: 255, fontStyle: 'bold' },
+    footStyles: { fillColor: [155, 89, 182], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: {
+      4: { halign: 'center' }
+    },
+    margin: { top: 35, left: 14, right: 14 }
+  });
+  
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+    doc.text('Sistema APT - Control de Cocina', 105, 290, { align: 'center' });
+  }
+  
+  doc.save('produccion.pdf');
+};
+
+/**
+ * Exportar checklists a PDF
+ */
+export const exportarChecklistsPDF = (checklists) => {
+  const doc = new jsPDF();
+  const startY = configurarPDF(doc, 'Reporte de Checklists de Calidad');
+  
+  const tableData = [];
+  checklists.forEach(checklist => {
+    tableData.push([
+      new Date(checklist.fecha).toLocaleDateString('es-CL'),
+      checklist.turno,
+      checklist.responsable,
+      checklist.estado === 'completo' ? '✓ Completo' : '✗ Pendiente',
+      `${checklist.items.filter(i => i.completado).length}/${checklist.items.length}`
+    ]);
+  });
+  
+  doc.autoTable({
+    startY,
+    head: [['Fecha', 'Turno', 'Responsable', 'Estado', 'Tareas']],
+    body: tableData,
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: {
+      3: { halign: 'center' },
+      4: { halign: 'center' }
+    },
+    didParseCell: function(data) {
+      if (data.section === 'body' && data.column.index === 3) {
+        if (data.cell.raw.includes('✓')) {
+          data.cell.styles.textColor = [46, 204, 113];
+        } else {
+          data.cell.styles.textColor = [231, 76, 60];
+        }
+      }
+    },
+    margin: { top: 35, left: 14, right: 14 }
+  });
+  
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+    doc.text('Sistema APT - Control de Cocina', 105, 290, { align: 'center' });
+  }
+  
+  doc.save('checklists.pdf');
+};
+
+/**
+ * Exportar alertas a PDF
+ */
+export const exportarAlertasPDF = (alertas) => {
+  const doc = new jsPDF();
+  const startY = configurarPDF(doc, 'Reporte de Alertas del Sistema');
+  
+  const tableData = alertas.map(alerta => [
+    alerta.tipo.replace('_', ' ').toUpperCase(),
+    alerta.titulo,
+    alerta.descripcion,
+    alerta.prioridad.toUpperCase(),
+    alerta.estado,
+    new Date(alerta.fecha).toLocaleDateString('es-CL')
+  ]);
+  
+  doc.autoTable({
+    startY,
+    head: [['Tipo', 'Título', 'Descripción', 'Prioridad', 'Estado', 'Fecha']],
+    body: tableData,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: {
+      0: { cellWidth: 25 },
+      1: { cellWidth: 40 },
+      2: { cellWidth: 60 },
+      3: { cellWidth: 20, halign: 'center' },
+      4: { cellWidth: 20, halign: 'center' },
+      5: { cellWidth: 25, halign: 'center' }
+    },
+    didParseCell: function(data) {
+      if (data.section === 'body' && data.column.index === 3) {
+        if (data.cell.raw === 'ALTA') {
+          data.cell.styles.textColor = [231, 76, 60];
+          data.cell.styles.fontStyle = 'bold';
+        } else if (data.cell.raw === 'MEDIA') {
+          data.cell.styles.textColor = [243, 156, 18];
+        }
+      }
+    },
+    margin: { top: 35, left: 14, right: 14 }
+  });
+  
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+    doc.text('Sistema APT - Control de Cocina', 105, 290, { align: 'center' });
+  }
+  
+  doc.save('alertas.pdf');
+};
+
+/**
+ * Exportar reporte consolidado (resumen general)
+ */
+export const exportarReporteConsolidadoPDF = (datos) => {
+  const doc = new jsPDF();
+  const startY = configurarPDF(doc, 'Reporte Consolidado del Sistema');
+  
+  let currentY = startY;
+  
+  // Resumen general
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Resumen General', 14, currentY);
+  currentY += 8;
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Total de Proveedores: ${datos.proveedores || 0}`, 20, currentY);
+  currentY += 6;
+  doc.text(`Total de Productos: ${datos.productos || 0}`, 20, currentY);
+  currentY += 6;
+  doc.text(`Items en Inventario: ${datos.inventario || 0}`, 20, currentY);
+  currentY += 6;
+  doc.text(`Registros de Producción: ${datos.produccion || 0}`, 20, currentY);
+  currentY += 6;
+  doc.text(`Checklists Completados: ${datos.checklistsCompletos || 0} / ${datos.checklists || 0}`, 20, currentY);
+  currentY += 6;
+  doc.text(`Alertas Activas: ${datos.alertasActivas || 0}`, 20, currentY);
+  currentY += 12;
+  
+  // Alertas críticas
+  if (datos.alertasCriticas && datos.alertasCriticas.length > 0) {
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Alertas Críticas', 14, currentY);
+    currentY += 8;
+    
+    doc.autoTable({
+      startY: currentY,
+      head: [['Prioridad', 'Tipo', 'Descripción']],
+      body: datos.alertasCriticas.map(a => [
+        a.prioridad.toUpperCase(),
+        a.tipo.replace('_', ' '),
+        a.descripcion
+      ]),
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [231, 76, 60], textColor: 255 },
+      margin: { left: 14, right: 14 }
+    });
+    
+    currentY = doc.lastAutoTable.finalY + 10;
+  }
+  
+  // Productos próximos a vencer
+  if (datos.productosProximosVencer && datos.productosProximosVencer.length > 0) {
+    if (currentY > 240) {
+      doc.addPage();
+      currentY = 20;
+    }
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Productos Próximos a Vencer', 14, currentY);
+    currentY += 8;
+    
+    doc.autoTable({
+      startY: currentY,
+      head: [['Código', 'Lote', 'Fecha Vencimiento', 'Días Restantes']],
+      body: datos.productosProximosVencer.map(p => [
+        p.codigo_producto,
+        p.lote,
+        new Date(p.fecha_vencimiento).toLocaleDateString('es-CL'),
+        p.diasRestantes
+      ]),
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [243, 156, 18], textColor: 255 },
+      margin: { left: 14, right: 14 }
+    });
+  }
+  
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+    doc.text('Sistema APT - Control de Cocina', 105, 290, { align: 'center' });
+  }
+  
+  doc.save('reporte_consolidado.pdf');
+};

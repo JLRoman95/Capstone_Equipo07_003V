@@ -1,10 +1,19 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { pool } from '../config/db.js';
+import { pool, isPostgresAvailable } from '../config/db.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
 export const registerUser = async (req, res) => {
+  // Si PostgreSQL no está disponible, indicar que se use Firebase desde el frontend
+  if (!isPostgresAvailable) {
+    return res.status(503).json({ 
+      error: 'Base de datos no disponible',
+      message: 'Usa Firebase Authentication desde el frontend',
+      useFirebase: true
+    });
+  }
+  
   try {
     const { nombre, email, password, rol } = req.body;
 
@@ -34,6 +43,15 @@ export const registerUser = async (req, res) => {
 };
 
 export const loginUser = async (req, res) => {
+  // Si PostgreSQL no está disponible, indicar que se use Firebase desde el frontend
+  if (!isPostgresAvailable) {
+    return res.status(503).json({ 
+      error: 'Base de datos no disponible',
+      message: 'Usa Firebase Authentication desde el frontend',
+      useFirebase: true
+    });
+  }
+  
   try {
     const { email, password } = req.body;
 
@@ -75,6 +93,13 @@ export const loginUser = async (req, res) => {
 };
 
 export const getUsuario = async (req, res) => {
+  if (!isPostgresAvailable) {
+    return res.status(503).json({ 
+      error: 'Base de datos no disponible',
+      useFirebase: true
+    });
+  }
+  
   try {
     const { id } = req.user; // viene del token
     const result = await pool.query('SELECT id_usuario, nombre, email, rol FROM usuarios WHERE id_usuario = $1', [id]);
