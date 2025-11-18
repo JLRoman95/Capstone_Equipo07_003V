@@ -13,6 +13,9 @@ const Inventario = () => {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showLotesModal, setShowLotesModal] = useState(false);
+  const [productoSeleccionado, setProductoSeleccionado] = useState(null);
+  const [lotesProducto, setLotesProducto] = useState([]);
   const [formData, setFormData] = useState({
     codigo_producto: '',
     cantidad_unidades: '',
@@ -94,6 +97,44 @@ const Inventario = () => {
     const producto = productos.find(p => p.codigo_producto === codigoProducto);
     return producto?.nombre || 'Desconocido';
   };
+  
+  const agruparInventarioPorProducto = () => {
+    const agrupado = {};
+    
+    inventario.forEach(item => {
+      if (!agrupado[item.codigo_producto]) {
+        agrupado[item.codigo_producto] = {
+          codigo_producto: item.codigo_producto,
+          nombre: getProductoNombre(item.codigo_producto),
+          lotes: [],
+          total_unidades: 0,
+          lotes_por_vencer: 0,
+          lotes_vencidos: 0
+        };
+      }
+      
+      agrupado[item.codigo_producto].lotes.push(item);
+      agrupado[item.codigo_producto].total_unidades += item.cantidad_unidades;
+      
+      if (isExpired(item.fecha_vencimiento)) {
+        agrupado[item.codigo_producto].lotes_vencidos++;
+      } else if (isExpiringSoon(item.fecha_vencimiento)) {
+        agrupado[item.codigo_producto].lotes_por_vencer++;
+      }
+    });
+    
+    return Object.values(agrupado).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  };
+  
+  const verLotesProducto = (codigoProducto) => {
+    const lotes = inventario
+      .filter(item => item.codigo_producto === codigoProducto)
+      .sort((a, b) => new Date(a.fecha_vencimiento) - new Date(b.fecha_vencimiento));
+    
+    setLotesProducto(lotes);
+    setProductoSeleccionado(productos.find(p => p.codigo_producto === codigoProducto));
+    setShowLotesModal(true);
+  };
 
   const isExpiringSoon = (fecha) => {
     const days = Math.ceil((new Date(fecha) - new Date()) / (1000 * 60 * 60 * 24));
@@ -147,38 +188,44 @@ const Inventario = () => {
               <thead>
                 <tr>
                   <th>Producto</th>
-                  <th>Lote</th>
-                  <th>Cantidad</th>
-                  <th>Fecha Ingreso</th>
-                  <th>Fecha Vencimiento</th>
+                  <th>Total Unidades</th>
+                  <th>Total Lotes</th>
                   <th>Estado</th>
-                  {can('inventario', 'delete') && <th>Acciones</th>}
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {inventario.map((item) => (
-                  <tr key={item.id} style={{ backgroundColor: isExpired(item.fecha_vencimiento) ? '#fee2e2' : isExpiringSoon(item.fecha_vencimiento) ? '#fef3c7' : 'white' }}>
-                    <td style={{ fontWeight: '500' }}>{getProductoNombre(item.codigo_producto)}</td>
-                    <td>{item.lote}</td>
-                    <td>{item.cantidad_unidades} unidades</td>
-                    <td>{new Date(item.fecha_ingreso).toLocaleDateString()}</td>
-                    <td>{new Date(item.fecha_vencimiento).toLocaleDateString()}</td>
+                {agruparInventarioPorProducto().map((item) => (
+                  <tr key={item.codigo_producto} style={{ cursor: 'pointer' }}>
+                    <td style={{ fontWeight: '500' }}>{item.nombre}</td>
+                    <td>{item.total_unidades} unidades</td>
+                    <td>{item.lotes.length} lote(s)</td>
                     <td>
-                      {isExpired(item.fecha_vencimiento) ? (
-                        <span className="badge badge-danger">Vencido</span>
-                      ) : isExpiringSoon(item.fecha_vencimiento) ? (
-                        <span className="badge badge-warning">Por Vencer</span>
-                      ) : (
-                        <span className="badge badge-success">OK</span>
-                      )}
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {item.lotes_vencidos > 0 && (
+                          <span className="badge badge-danger" style={{ fontSize: '0.75rem' }}>
+                            {item.lotes_vencidos} vencido(s)
+                          </span>
+                        )}
+                        {item.lotes_por_vencer > 0 && (
+                          <span className="badge badge-warning" style={{ fontSize: '0.75rem' }}>
+                            {item.lotes_por_vencer} por vencer
+                          </span>
+                        )}
+                        {item.lotes_vencidos === 0 && item.lotes_por_vencer === 0 && (
+                          <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>OK</span>
+                        )}
+                      </div>
                     </td>
-                    {can('inventario', 'delete') && (
-                      <td>
-                        <button onClick={() => handleDelete(item.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}>
-                          🗑️
-                        </button>
-                      </td>
-                    )}
+                    <td>
+                      <button
+                        onClick={() => verLotesProducto(item.codigo_producto)}
+                        className="btn btn-primary"
+                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                      >
+                        📊 Ver Lotes
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -262,6 +309,108 @@ const Inventario = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Lotes de Producto */}
+      {showLotesModal && productoSeleccionado && (
+        <div className="modal-overlay" onClick={() => setShowLotesModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+              📦 Lotes de {productoSeleccionado.nombre}
+            </h2>
+            
+            <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f3f4f6', borderRadius: '0.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', fontSize: '0.9rem' }}>
+                <div>
+                  <strong>Código:</strong> {productoSeleccionado.codigo_producto}
+                </div>
+                <div>
+                  <strong>Total Lotes:</strong> {lotesProducto.length}
+                </div>
+                <div>
+                  <strong>Total Unidades:</strong> {lotesProducto.reduce((sum, lote) => sum + lote.cantidad_unidades, 0)}
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '1rem' }}>
+              <table className="table" style={{ fontSize: '0.9rem' }}>
+                <thead>
+                  <tr>
+                    <th>Lote</th>
+                    <th>Cantidad</th>
+                    <th>Fecha Ingreso</th>
+                    <th>Fecha Vencimiento</th>
+                    <th>Días Restantes</th>
+                    <th>Estado</th>
+                    {can('inventario', 'delete') && <th>Acción</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lotesProducto.map((lote) => {
+                    const diasRestantes = Math.ceil((new Date(lote.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24));
+                    return (
+                      <tr key={lote.id} style={{ 
+                        backgroundColor: isExpired(lote.fecha_vencimiento) ? '#fee2e2' : 
+                                       isExpiringSoon(lote.fecha_vencimiento) ? '#fef3c7' : 'white' 
+                      }}>
+                        <td style={{ fontWeight: '500' }}>{lote.lote}</td>
+                        <td>{lote.cantidad_unidades} unidades</td>
+                        <td>{new Date(lote.fecha_ingreso).toLocaleDateString()}</td>
+                        <td>{new Date(lote.fecha_vencimiento).toLocaleDateString()}</td>
+                        <td>
+                          {diasRestantes > 0 ? (
+                            <span>{diasRestantes} días</span>
+                          ) : (
+                            <span style={{ color: '#dc2626', fontWeight: '600' }}>Vencido</span>
+                          )}
+                        </td>
+                        <td>
+                          {isExpired(lote.fecha_vencimiento) ? (
+                            <span className="badge badge-danger">Vencido</span>
+                          ) : isExpiringSoon(lote.fecha_vencimiento) ? (
+                            <span className="badge badge-warning">Por Vencer</span>
+                          ) : diasRestantes <= 14 ? (
+                            <span className="badge" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>Próximo</span>
+                          ) : (
+                            <span className="badge badge-success">OK</span>
+                          )}
+                        </td>
+                        {can('inventario', 'delete') && (
+                          <td>
+                            <button 
+                              onClick={() => {
+                                handleDelete(lote.id);
+                                setShowLotesModal(false);
+                              }} 
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+                              title="Eliminar lote"
+                            >
+                              🗑️
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                📄 Sistema FIFO: Los lotes se ordenan por fecha de vencimiento
+              </div>
+              <button 
+                onClick={() => setShowLotesModal(false)} 
+                className="btn" 
+                style={{ backgroundColor: '#6b7280', color: 'white' }}
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
