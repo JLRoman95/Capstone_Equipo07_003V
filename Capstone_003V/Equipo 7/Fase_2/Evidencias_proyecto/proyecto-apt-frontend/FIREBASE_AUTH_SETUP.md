@@ -38,7 +38,7 @@ const firebaseConfig = {
 };
 ```
 
-## Paso 5: Actualizar .env
+## Paso 5: Actualizar .env 
 
 Abre el archivo `.env` en `proyecto-apt-frontend/` y reemplaza:
 
