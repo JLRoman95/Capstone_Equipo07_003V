@@ -139,7 +139,7 @@ const Productos = () => {
                     <td style={{ fontWeight: '500' }}>{prod.nombre}</td>
                     <td>{prod.categoria}</td>
                     <td>{prod.unidad_medida}</td>
-                    <td>${prod.precio_unitario?.toLocaleString()}</td>
+                    <td>${prod.precio_unitario ? prod.precio_unitario.toLocaleString() : '0'}</td>
                     {can('productos', 'delete') && (
                       <td>
                         <button onClick={() => handleDelete(prod.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}>

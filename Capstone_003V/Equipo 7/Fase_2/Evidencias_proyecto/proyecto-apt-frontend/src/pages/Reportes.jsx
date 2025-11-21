@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { reporteService } from '../services/api';
+import { inventarioFirebase, produccionFirebase, proveedoresFirebase, productosFirebase, checklistsFirebase, alertasFirebase } from '../services/firestoreService';
+import { exportarInventarioPDF, exportarProduccionPDF, exportarReporteConsolidadoPDF } from '../services/exportService';
 import { useNavigate } from 'react-router-dom';
 
 const Reportes = () => {
@@ -8,24 +9,95 @@ const Reportes = () => {
   const [error, setError] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
+  const [fechaInicioGeneral, setFechaInicioGeneral] = useState('');
+  const [fechaFinGeneral, setFechaFinGeneral] = useState('');
+  const generarReporteGeneral = async () => {
+    if (!fechaInicioGeneral || !fechaFinGeneral) {
+      setError('Debe seleccionar fechas de inicio y fin para el reporte general');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      // Fechas
+      const inicio = new Date(fechaInicioGeneral);
+      const fin = new Date(fechaFinGeneral);
+      fin.setHours(23, 59, 59, 999);
 
-  const downloadBlob = (blob, filename) => {
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+      // Consultar todos los datos
+      const [proveedores, productos, inventario, produccion, checklists, alertas] = await Promise.all([
+        proveedoresFirebase.listar(),
+        productosFirebase.listar(),
+        inventarioFirebase.listar(),
+        produccionFirebase.listar(),
+        checklistsFirebase.listar(),
+        alertasFirebase.listar()
+      ]);
+
+      // Filtrar por fechas
+      const inventarioFiltrado = inventario.filter(i => {
+        const fecha = new Date(i.fecha_ingreso);
+        return fecha >= inicio && fecha <= fin;
+      });
+      const produccionFiltrada = produccion.filter(p => {
+        const fecha = p.fecha?.toDate ? p.fecha.toDate() : new Date(p.fecha);
+        return fecha >= inicio && fecha <= fin;
+      });
+      const checklistsFiltrados = checklists.filter(c => {
+        const fecha = c.fecha?.toDate ? c.fecha.toDate() : new Date(c.fecha);
+        return fecha >= inicio && fecha <= fin;
+      });
+      const alertasFiltradas = alertas.filter(a => {
+        const fecha = a.fecha?.toDate ? a.fecha.toDate() : new Date(a.fecha);
+        return fecha >= inicio && fecha <= fin;
+      });
+
+      // Resumen y datos para el PDF
+      const datos = {
+        proveedores: proveedores.length,
+        productos: productos.length,
+        inventario: inventarioFiltrado.length,
+        produccion: produccionFiltrada.length,
+        checklists: checklistsFiltrados.length,
+        checklistsCompletos: checklistsFiltrados.filter(c => c.estado === 'completo').length,
+        alertasActivas: alertasFiltradas.length,
+        alertasCriticas: alertasFiltradas.filter(a => a.prioridad === 'alta').map(a => ({
+          prioridad: a.prioridad,
+          tipo: a.tipo,
+          descripcion: a.titulo || a.mensaje
+        })),
+        productosProximosVencer: inventarioFiltrado.filter(i => {
+          const fechaVenc = i.fecha_vencimiento ? new Date(i.fecha_vencimiento) : null;
+          if (!fechaVenc) return false;
+          const diasRestantes = Math.ceil((fechaVenc - new Date()) / (1000 * 60 * 60 * 24));
+          return diasRestantes >= 0 && diasRestantes <= 7;
+        }).map(i => ({
+          codigo_producto: i.codigo_producto,
+          lote: i.lote,
+          fecha_vencimiento: i.fecha_vencimiento,
+          diasRestantes: Math.ceil((new Date(i.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24))
+        }))
+      };
+
+      exportarReporteConsolidadoPDF(datos);
+    } catch (error) {
+      setError('Error al generar reporte general');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const generarReporteInventario = async () => {
     setLoading(true);
     setError('');
     try {
-      const blob = await reporteService.inventario();
-      downloadBlob(blob, `reporte_inventario_${new Date().toISOString().split('T')[0]}.pdf`);
+      const inventario = await inventarioFirebase.listar();
+      if (inventario.length === 0) {
+        setError('No hay datos de inventario para exportar');
+        return;
+      }
+      exportarInventarioPDF(inventario);
     } catch (error) {
       setError('Error al generar reporte de inventario');
       console.error(error);
@@ -42,8 +114,24 @@ const Reportes = () => {
     setLoading(true);
     setError('');
     try {
-      const blob = await reporteService.produccion(fechaInicio, fechaFin);
-      downloadBlob(blob, `reporte_produccion_${fechaInicio}_${fechaFin}.pdf`);
+      const produccionCompleta = await produccionFirebase.listar();
+      
+      // Filtrar por rango de fechas
+      const inicio = new Date(fechaInicio);
+      const fin = new Date(fechaFin);
+      fin.setHours(23, 59, 59, 999);
+      
+      const produccionFiltrada = produccionCompleta.filter(p => {
+        const fechaProd = p.fecha?.toDate ? p.fecha.toDate() : new Date(p.fecha);
+        return fechaProd >= inicio && fechaProd <= fin;
+      });
+      
+      if (produccionFiltrada.length === 0) {
+        setError('No hay datos de producción en el rango de fechas seleccionado');
+        return;
+      }
+      
+      exportarProduccionPDF(produccionFiltrada);
     } catch (error) {
       setError('Error al generar reporte de producción');
       console.error(error);
@@ -68,6 +156,39 @@ const Reportes = () => {
         {error && <div className="alert alert-error">{error}</div>}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
+          {/* Reporte General Ejecutivo */}
+          <div className="card">
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: '#111827' }}>📑 Reporte General Ejecutivo</h2>
+            <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+              Genera un reporte PDF con todos los datos del sistema (inventario, producción, alertas, checklists, proveedores) filtrados por rango de fechas.
+            </p>
+            <div style={{ marginBottom: '1rem' }}>
+              <label className="label">Fecha Inicio</label>
+              <input
+                type="date"
+                value={fechaInicioGeneral}
+                onChange={(e) => setFechaInicioGeneral(e.target.value)}
+                className="input"
+              />
+            </div>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label className="label">Fecha Fin</label>
+              <input
+                type="date"
+                value={fechaFinGeneral}
+                onChange={(e) => setFechaFinGeneral(e.target.value)}
+                className="input"
+              />
+            </div>
+            <button
+              onClick={generarReporteGeneral}
+              disabled={loading}
+              className="btn btn-info"
+              style={{ width: '100%' }}
+            >
+              {loading ? 'Generando...' : 'Generar Reporte Ejecutivo'}
+            </button>
+          </div>
           {/* Reporte de Inventario */}
           <div className="card">
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: '#111827' }}>📦 Reporte de Inventario</h2>

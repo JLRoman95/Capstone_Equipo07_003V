@@ -3,13 +3,15 @@ import { useAuth } from '../context/AuthContext';
 import { alertasFirebase, inventarioFirebase, produccionFirebase, proveedoresFirebase, productosFirebase, checklistsFirebase } from '../services/firestoreService';
 import { useNavigate } from 'react-router-dom';
 import useAnalytics from '../hooks/useAnalytics';
-import NotificationBell from '../components/NotificationBell';
+import usePermissions from '../hooks/usePermissions';
+import Layout from '../components/Layout';
 import { exportarReporteConsolidadoPDF } from '../services/exportService';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { trackPageView, track } = useAnalytics();
+  const { can } = usePermissions();
   const [stats, setStats] = useState({
     alertas: 0,
     inventario: 0,
@@ -24,9 +26,11 @@ const Dashboard = () => {
   const lastLoadTime = React.useRef(0);
 
   useEffect(() => {
-    loadStats(true); // Carga inicial
-    trackPageView('Dashboard');
-  }, []);
+    if (user) {
+      loadStats(true); // Carga inicial
+      trackPageView('Dashboard');
+    }
+  }, [user]);
 
   const loadStats = async (showSpinner = false) => {
     // Evitar múltiples cargas simultáneas
@@ -53,12 +57,17 @@ const Dashboard = () => {
       ]);
       
       setStats({
-        alertas: alertasData.filter(a => a.estado === 'activa').length,
+        alertas: alertasData.length, // alertasFirebase.listar() ya retorna solo activas
         inventario: inventarioData.length,
         produccion: produccionData.length,
         productos: productosData.length,
         proveedores: proveedoresData.length,
         checklists: checklistsData.length
+      });
+      
+      console.log('Dashboard stats cargadas:', {
+        alertasActivas: alertasData.length,
+        alertasData: alertasData
       });
       
       if (isInitialLoad) setIsInitialLoad(false);
@@ -118,48 +127,13 @@ const Dashboard = () => {
     { name: 'Checklists', icon: '✅', description: 'Control de calidad', path: '/checklists', color: '#f59e0b', stat: stats.checklists },
     { name: 'Producción', icon: '👨‍🍳', description: 'Registro de producción', path: '/produccion', color: '#ef4444', stat: stats.produccion },
     { name: 'Alertas', icon: '🚨', description: 'Notificaciones y alertas', path: '/alertas', color: '#ec4899', stat: stats.alertas },
-    { name: 'Reportes', icon: '📊', description: 'Reportes y estadísticas', path: '/reportes', color: '#6366f1', stat: null }
+    { name: 'Reportes', icon: '📊', description: 'Reportes y estadísticas', path: '/reportes', color: '#6366f1', stat: null },
+    ...(can('proveedores', 'create') ? [{ name: 'Crear Usuario', icon: '👤', description: 'Registrar nuevo usuario', path: '/crear-usuario', color: '#14b8a6', stat: null }] : [])
   ];
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
-      {/* Header */}
-      <header style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1rem 0' }}>
-        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#111827', margin: 0 }}>Sistema APT</h1>
-            <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>Control de Calidad Alimentaria</p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <NotificationBell />
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#111827', margin: 0, whiteSpace: 'nowrap' }}>{user?.nombre || 'Usuario'}</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
-                <span 
-                  style={{ 
-                    fontSize: '0.65rem', 
-                    color: 'white',
-                    backgroundColor: user?.rol === 'admin' ? '#ef4444' : user?.rol === 'auditor' ? '#f59e0b' : '#10b981',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '0.25rem',
-                    fontWeight: '600',
-                    textTransform: 'uppercase',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {user?.rol === 'admin' ? 'Admin' : user?.rol === 'auditor' ? 'Auditor' : 'Cocinero'}
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={logout}
-              className="btn btn-danger"
-            >
-              Cerrar Sesión
-            </button>
-          </div>
-        </div>
-      </header>
+    <Layout>
+      {/* Main Content */}
 
       {/* Main Content */}
       <main className="container" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
@@ -296,7 +270,7 @@ const Dashboard = () => {
           </div>
         </div>
       </main>
-    </div>
+    </Layout>
   );
 };
 

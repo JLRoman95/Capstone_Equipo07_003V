@@ -14,6 +14,7 @@ import Checklists from './pages/Checklists';
 import Produccion from './pages/Produccion';
 import Reportes from './pages/Reportes';
 import Alertas from './pages/Alertas';
+import CrearUsuario from './pages/CrearUsuario';
 
 function App() {
   return (
@@ -86,6 +87,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Alertas />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/crear-usuario"
+            element={
+              <ProtectedRoute>
+                <CrearUsuario />
               </ProtectedRoute>
             }
           />

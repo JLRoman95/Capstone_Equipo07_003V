@@ -73,11 +73,11 @@ export const exportarProductosPDF = (productos) => {
   const startY = configurarPDF(doc, 'Catálogo de Productos');
   
   const tableData = productos.map(p => [
-    p.codigo_producto,
-    p.nombre,
-    p.categoria,
-    p.unidad_medida,
-    `$${p.precio_unitario.toLocaleString('es-CL')}`
+    p.codigo_producto || 'N/A',
+    p.nombre || 'N/A',
+    p.categoria || 'N/A',
+    p.unidad_medida || 'N/A',
+    p.precio_unitario ? `$${p.precio_unitario.toLocaleString('es-CL')}` : '$0'
   ]);
   
   autoTable(doc,{

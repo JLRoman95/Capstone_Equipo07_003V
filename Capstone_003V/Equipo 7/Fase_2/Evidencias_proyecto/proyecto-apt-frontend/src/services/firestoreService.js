@@ -182,6 +182,16 @@ export const produccionFirebase = {
       console.error('Error al eliminar producción:', error);
       throw error;
     }
+  },
+
+  async actualizar(id, datos) {
+    try {
+      await updateDoc(doc(db, 'produccion', id), datos);
+      return { id, ...datos };
+    } catch (error) {
+      console.error('Error al actualizar producción:', error);
+      throw error;
+    }
   }
 };
 
@@ -238,9 +248,12 @@ export const checklistsFirebase = {
 export const alertasFirebase = {
   async listar() {
     try {
-      const q = query(collection(db, 'alertas'), where('estado', '==', 'activa'), orderBy('fecha', 'desc'));
+      // Obtener todas las alertas y filtrar en el cliente para evitar necesitar índice compuesto
+      const q = query(collection(db, 'alertas'), orderBy('fecha', 'desc'));
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const todasAlertas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Filtrar solo las activas
+      return todasAlertas.filter(a => a.estado === 'activa');
     } catch (error) {
       console.error('Error al listar alertas:', error);
       return [];
@@ -255,5 +268,77 @@ export const alertasFirebase = {
       console.error('Error al contar alertas:', error);
       return { total_alertas: 0 };
     }
+  },
+
+  async actualizar(id, datos) {
+    try {
+      await updateDoc(doc(db, 'alertas', id), datos);
+      return { id, ...datos };
+    } catch (error) {
+      console.error('Error al actualizar alerta:', error);
+      throw error;
+    }
+  },
+
+  async resolver(id) {
+    try {
+      await updateDoc(doc(db, 'alertas', id), {
+        estado: 'resuelta',
+        fecha_resolucion: new Date().toISOString()
+      });
+      return true;
+    } catch (error) {
+      console.error('Error al resolver alerta:', error);
+      throw error;
+    }
   }
 };
+
+// ==================== RECETAS ====================
+
+export const recetasFirebase = {
+  async listar() {
+    try {
+      const q = query(collection(db, 'recetas'), orderBy('nombre', 'asc'));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error al listar recetas:', error);
+      return [];
+    }
+  },
+
+  async crear(datos) {
+    try {
+      const docRef = await addDoc(collection(db, 'recetas'), {
+        ...datos,
+        creado_en: new Date().toISOString()
+      });
+      return { id: docRef.id, ...datos };
+    } catch (error) {
+      console.error('Error al crear receta:', error);
+      throw error;
+    }
+  },
+
+  async actualizar(id, datos) {
+    try {
+      await updateDoc(doc(db, 'recetas', id), datos);
+      return { id, ...datos };
+    } catch (error) {
+      console.error('Error al actualizar receta:', error);
+      throw error;
+    }
+  },
+
+  async eliminar(id) {
+    try {
+      await deleteDoc(doc(db, 'recetas', id));
+      return true;
+    } catch (error) {
+      console.error('Error al eliminar receta:', error);
+      throw error;
+    }
+  }
+};
+
