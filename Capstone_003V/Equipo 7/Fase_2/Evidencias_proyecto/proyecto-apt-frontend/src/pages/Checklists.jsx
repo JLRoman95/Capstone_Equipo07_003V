@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { addDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { checklistsFirebase } from '../services/firestoreService';
@@ -15,6 +15,10 @@ const Checklists = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedChecklist, setSelectedChecklist] = useState(null);
   const [editingChecklist, setEditingChecklist] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('todos');
+  const [turnoFilter, setTurnoFilter] = useState('todos');
+  const [fechaFiltro, setFechaFiltro] = useState('');
   const [formData, setFormData] = useState({
     fecha: new Date().toISOString().split('T')[0],
     turno: 'Mañana',
@@ -41,6 +45,39 @@ const Checklists = () => {
   const [newTaskType, setNewTaskType] = useState('text');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const parseChecklistDate = (valor) => {
+    if (!valor) return null;
+    return valor?.toDate ? valor.toDate() : new Date(valor);
+  };
+
+  const resumen = useMemo(() => {
+    const total = checklists.length;
+    const completos = checklists.filter(c => c.estado === 'completo').length;
+    const pendientes = total - completos;
+    const recientes = checklists.filter(c => {
+      const fecha = parseChecklistDate(c.fecha);
+      if (!fecha || Number.isNaN(fecha.getTime())) return false;
+      const hoy = new Date();
+      const diff = (hoy - fecha) / (1000 * 60 * 60 * 24);
+      return diff <= 7;
+    }).length;
+    return { total, completos, pendientes, recientes };
+  }, [checklists]);
+
+  const filteredChecklists = useMemo(() => {
+    return checklists.filter(check => {
+      const matchesStatus = statusFilter === 'todos' ? true : check.estado === statusFilter;
+      const matchesTurno = turnoFilter === 'todos' ? true : check.turno === turnoFilter;
+      const matchesSearch = searchTerm.trim() === ''
+        ? true
+        : (check.responsable || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (check.items || []).some(item => item.tarea.toLowerCase().includes(searchTerm.toLowerCase()));
+      const fechaNormalizada = parseChecklistDate(check.fecha);
+      const matchesFecha = fechaFiltro ? (fechaNormalizada ? fechaNormalizada.toISOString().split('T')[0] === fechaFiltro : false) : true;
+      return matchesStatus && matchesTurno && matchesSearch && matchesFecha;
+    });
+  }, [checklists, statusFilter, turnoFilter, searchTerm, fechaFiltro]);
 
   useEffect(() => {
     loadData();
@@ -171,7 +208,8 @@ const Checklists = () => {
   };
 
   const handleExport = async () => {
-    exportarChecklistsPDF(checklists);
+    const data = filteredChecklists.length ? filteredChecklists : checklists;
+    exportarChecklistsPDF(data);
   };
 
   const handleToggleItem = async (checklistId, itemIndex) => {
@@ -294,85 +332,238 @@ const Checklists = () => {
         {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
         {success && <div className="alert alert-success" style={{ marginBottom: '1rem', backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #10b981' }}>{success}</div>}
 
-        <div style={{ marginBottom: '20px' }}>
-          <button 
-            onClick={handleExport} 
-            className="btn" 
-            style={{ backgroundColor: '#e74c3c', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-            Exportar
-          </button>
-      </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+            {[{
+              label: 'Totales',
+              value: resumen.total,
+              color: '#2563eb'
+            }, {
+              label: 'Completos',
+              value: resumen.completos,
+              color: '#10b981'
+            }, {
+              label: 'Pendientes',
+              value: resumen.pendientes,
+              color: '#f59e0b'
+            }, {
+              label: 'Últimos 7 días',
+              value: resumen.recientes,
+              color: '#6366f1'
+            }].map(card => (
+              <div key={card.label} style={{
+                background: 'white',
+                borderRadius: '0.75rem',
+                padding: '1rem',
+                boxShadow: '0 8px 30px rgba(15,23,42,0.08)',
+                border: `1px solid ${card.color}20`
+              }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>{card.label}</p>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '2rem', fontWeight: 700, color: card.color }}>{card.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Buscar por responsable o tarea"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input"
+              style={{ flex: 1, minWidth: '220px' }}
+            />
+            <select
+              value={turnoFilter}
+              onChange={(e) => setTurnoFilter(e.target.value)}
+              className="input"
+              style={{ minWidth: '150px' }}
+            >
+              <option value="todos">Turno • Todos</option>
+              <option value="Mañana">Turno • Mañana</option>
+              <option value="Tarde">Turno • Tarde</option>
+              <option value="Noche">Turno • Noche</option>
+            </select>
+            <input
+              type="date"
+              value={fechaFiltro}
+              onChange={(e) => setFechaFiltro(e.target.value)}
+              className="input"
+              style={{ minWidth: '150px' }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {[{ label: 'Todos', value: 'todos' }, { label: 'Pendientes', value: 'pendiente' }, { label: 'Completos', value: 'completo' }].map(btn => (
+                <button
+                  key={btn.value}
+                  type="button"
+                  onClick={() => setStatusFilter(btn.value)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '999px',
+                    border: statusFilter === btn.value ? 'none' : '1px solid #d1d5db',
+                    backgroundColor: statusFilter === btn.value ? '#111827' : 'white',
+                    color: statusFilter === btn.value ? 'white' : '#374151',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    boxShadow: statusFilter === btn.value ? '0 8px 20px rgba(0,0,0,0.15)' : 'none'
+                  }}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={handleExport} 
+              className="btn" 
+              style={{ backgroundColor: '#e74c3c', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+              Exportar
+            </button>
+          </div>
+        </div>
 
       {/* Listado de checklists existentes */}
       {loading ? (
         <p style={{ color: '#6b7280' }}>Cargando checklists...</p>
       ) : (
         <div style={{ display: 'grid', gap: '1rem' }}>
-          {checklists.length === 0 ? (
-            <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No hay checklists registrados.</p>
+          {filteredChecklists.length === 0 ? (
+            <div style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '0.75rem',
+              textAlign: 'center',
+              border: '1px dashed #d1d5db'
+            }}>
+              <p style={{ color: '#6b7280', fontWeight: 500 }}>No se encontraron checklists con los filtros seleccionados.</p>
+              {checklists.length === 0 && <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Crea uno nuevo para empezar.</p>}
+              {checklists.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('todos'); setTurnoFilter('todos'); setSearchTerm(''); setFechaFiltro(''); }}
+                  className="btn"
+                  style={{ marginTop: '0.5rem', backgroundColor: '#111827', color: 'white' }}
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
           ) : (
-            checklists.map((check) => (
+            filteredChecklists.map((check) => {
+              const fechaChecklist = parseChecklistDate(check.fecha);
+              const fechaDisplay = fechaChecklist ? fechaChecklist.toLocaleDateString() : 'Fecha no disponible';
+              return (
               <div key={check.id} style={{
                 backgroundColor: 'white',
-                padding: '1rem',
-                borderRadius: '0.5rem',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                padding: '1.25rem',
+                borderRadius: '1rem',
+                boxShadow: '0 15px 45px rgba(15,23,42,0.08)',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'stretch',
+                border: '1px solid #e5e7eb',
+                gap: '1rem'
               }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>Checklist {new Date(check.fecha).toLocaleDateString()} • {check.turno}</h3>
-                  <p style={{ margin: '0.25rem 0', color: '#374151' }}>Responsable: {check.responsable || '—'}</p>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: check.estado === 'completo' ? '#059669' : '#b45309' }}>
-                    Estado: {check.estado === 'completo' ? '✔ Completado' : 'Pendiente'}
-                  </p>
-                  {/* Barra de progreso */}
-                  {check.items && check.items.length > 0 && (
-                    (() => {
-                      const total = check.items.length;
-                      const done = check.items.filter(i => i.completado).length;
-                      const pct = Math.round(done / total * 100);
-                      return (
-                        <div style={{ marginTop: '0.4rem' }}>
-                          <div style={{ height: '6px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{ width: pct + '%', background: pct === 100 ? '#10b981' : '#f59e0b', height: '100%' }}></div>
-                          </div>
-                          <span style={{ fontSize: '0.7rem', color: '#374151' }}>{pct}% completado</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '600', color: '#111827' }}>Checklist {fechaDisplay}</h3>
+                      <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>Turno {check.turno}</span>
+                    </div>
+                    <span style={{
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '999px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      backgroundColor: check.estado === 'completo' ? '#dcfce7' : '#fef3c7',
+                      color: check.estado === 'completo' ? '#15803d' : '#b45309'
+                    }}>
+                      {check.estado === 'completo' ? 'Completado' : 'Pendiente'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <span style={{
+                      background: '#f3f4f6',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '999px',
+                      fontSize: '0.8rem',
+                      color: '#374151'
+                    }}>
+                      👤 {check.responsable || 'Sin responsable'}
+                    </span>
+                    <span style={{
+                      background: '#f3f4f6',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '999px',
+                      fontSize: '0.8rem',
+                      color: '#374151'
+                    }}>
+                      📋 {check.items?.length || 0} tareas
+                    </span>
+                    {check.items?.some(item => item.alertaPCC) && (
+                      <span style={{
+                        background: '#fee2e2',
+                        color: '#b91c1c',
+                        padding: '0.35rem 0.75rem',
+                        borderRadius: '999px',
+                        fontSize: '0.8rem'
+                      }}>
+                        ⚠️ PCC pendiente
+                      </span>
+                    )}
+                  </div>
+                  {check.items && check.items.length > 0 && (() => {
+                    const total = check.items.length;
+                    const done = check.items.filter(i => i.completado).length;
+                    const pct = Math.round(done / total * 100);
+                    return (
+                      <div style={{ marginTop: '0.4rem' }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: '0.8rem',
+                          color: '#6b7280',
+                          marginBottom: '0.25rem'
+                        }}>
+                          <span>{done}/{total} completadas</span>
+                          <span>{pct}%</span>
                         </div>
-                      );
-                    })()
-                  )}
+                        <div style={{ height: '8px', background: '#e5e7eb', borderRadius: '999px', overflow: 'hidden' }}>
+                          <div style={{ width: pct + '%', background: pct === 100 ? '#10b981' : '#f59e0b', height: '100%' }}></div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
                   <button
                     onClick={() => setSelectedChecklist(check)}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+                    style={{ background: '#f3f4f6', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: '0.4rem 0.9rem', borderRadius: '999px' }}
                     title="Ver detalle"
                   >
-                    👁️
+                    👁️ Ver
                   </button>
                   {can('checklists', 'update') && (
                     <button
                       onClick={() => handleEditChecklist(check)}
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+                      style={{ background: '#eef2ff', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: '0.4rem 0.9rem', borderRadius: '999px', color: '#4338ca' }}
                       title="Editar"
                     >
-                      ✏️
+                      ✏️ Editar
                     </button>
                   )}
                   {can('checklists', 'delete') && (
                     <button
                       onClick={() => handleDeleteChecklist(check.id)}
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+                      style={{ background: '#fee2e2', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: '0.4rem 0.9rem', borderRadius: '999px', color: '#b91c1c' }}
                       title="Eliminar"
                     >
-                      🗑️
+                      🗑️ Eliminar
                     </button>
                   )}
                 </div>
               </div>
-            ))
+            );
+          })
           )}
         </div>
       )}
@@ -514,15 +705,54 @@ const Checklists = () => {
 
       {selectedChecklist && (
         <div className="modal-overlay" onClick={() => setSelectedChecklist(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '720px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>
-              Detalle Checklist - {selectedChecklist.turno} {new Date(selectedChecklist.fecha).toLocaleDateString()}
+              Detalle Checklist - {selectedChecklist.turno} {(() => {
+                const fecha = parseChecklistDate(selectedChecklist.fecha);
+                return fecha ? fecha.toLocaleDateString() : '';
+              })()}
             </h2>
-            <div style={{ marginBottom: '1rem' }}>
-              <p><strong>Responsable:</strong> {selectedChecklist.responsable}</p>
-              <p><strong>Estado:</strong> {selectedChecklist.estado}</p>
+            {(() => {
+              const total = selectedChecklist.items?.length || 0;
+              const done = selectedChecklist.items?.filter(item => item.completado).length || 0;
+              const pct = total ? Math.round((done / total) * 100) : 0;
+              return (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '0.75rem',
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{ background: '#f9fafb', borderRadius: '0.75rem', padding: '0.85rem' }}>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#6b7280' }}>Responsable</p>
+                    <p style={{ margin: 0, fontWeight: 600, color: '#111827' }}>{selectedChecklist.responsable || 'No asignado'}</p>
+                  </div>
+                  <div style={{ background: '#f9fafb', borderRadius: '0.75rem', padding: '0.85rem' }}>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#6b7280' }}>Estado</p>
+                    <p style={{ margin: 0, fontWeight: 600, color: selectedChecklist.estado === 'completo' ? '#16a34a' : '#b45309' }}>
+                      {selectedChecklist.estado === 'completo' ? 'Completado' : 'Pendiente'}
+                    </p>
+                  </div>
+                  <div style={{ background: '#f9fafb', borderRadius: '0.75rem', padding: '0.85rem' }}>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#6b7280' }}>Avance</p>
+                    <p style={{ margin: 0, fontWeight: 600, color: '#111827' }}>{done}/{total} ({pct}%)</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div style={{ marginBottom: '0.5rem' }}>
+              <div style={{ height: '10px', background: '#e5e7eb', borderRadius: '999px', overflow: 'hidden' }}>
+                {(() => {
+                  const total = selectedChecklist.items?.length || 0;
+                  const done = selectedChecklist.items?.filter(item => item.completado).length || 0;
+                  const pct = total ? Math.round((done / total) * 100) : 0;
+                  return <div style={{ width: pct + '%', height: '100%', background: pct === 100 ? '#10b981' : '#f59e0b' }}></div>;
+                })()}
+              </div>
             </div>
-            <div style={{ marginBottom: '1.5rem' }}>
+
+            <div style={{ marginBottom: '1.5rem', flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }}>
               <h3 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>Tareas:</h3>
               {!isRole('auditor') && (
                 <p style={{ 
@@ -622,7 +852,7 @@ const Checklists = () => {
                 </div>
               ))}
             </div>
-            <button onClick={() => setSelectedChecklist(null)} className="btn" style={{ width: '100%', backgroundColor: '#6b7280', color: 'white' }}>
+            <button onClick={() => setSelectedChecklist(null)} className="btn" style={{ width: '100%', backgroundColor: '#6b7280', color: 'white', marginTop: '0.5rem' }}>
               Cerrar
             </button>
           </div>

@@ -146,18 +146,24 @@ const Inventario = () => {
           lotes: [],
           total_unidades: 0,
           lotes_por_vencer: 0,
-          lotes_vencidos: 0
+          lotes_vencidos: 0,
+          unidades_vencidas: 0
         };
       }
       
-      agrupado[key].lotes.push(item);
+      const grupo = agrupado[key];
+      grupo.lotes.push(item);
       const qty = Number(item.cantidad_actual) || 0;
-      agrupado[key].total_unidades += qty;
+      const expirado = isExpired(item.fecha_vencimiento);
       
-      if (isExpired(item.fecha_vencimiento)) {
-        agrupado[item.codigo_producto].lotes_vencidos++;
-      } else if (isExpiringSoon(item.fecha_vencimiento)) {
-        agrupado[item.codigo_producto].lotes_por_vencer++;
+      if (expirado) {
+        grupo.lotes_vencidos++;
+        grupo.unidades_vencidas += qty;
+      } else {
+        grupo.total_unidades += qty;
+        if (isExpiringSoon(item.fecha_vencimiento)) {
+          grupo.lotes_por_vencer++;
+        }
       }
     });
     
@@ -292,6 +298,11 @@ const Inventario = () => {
                       <span style={{ color: item.total_unidades < (item.stock_minimo || 0) ? '#b91c1c' : undefined, fontWeight: item.total_unidades < (item.stock_minimo || 0) ? 600 : 400 }}>
                         {item.total_unidades} {item.lotes[0]?.unidad_medida || 'unidades'}
                       </span>
+                      {item.unidades_vencidas > 0 && (
+                        <span style={{ marginLeft: '0.25rem', fontSize: '0.8rem', color: '#b91c1c' }}>
+                          • {item.unidades_vencidas} vencidas
+                        </span>
+                      )}
                       {item.stock_minimo > 0 && (
                         <span style={{ marginLeft: '0.5rem', color: '#6b7280', fontSize: '0.8rem' }}>
                           (mín: {item.stock_minimo})
@@ -309,6 +320,11 @@ const Inventario = () => {
                         {item.lotes_vencidos > 0 && (
                           <span className="badge badge-danger" style={{ fontSize: '0.75rem' }}>
                             {item.lotes_vencidos} vencido(s)
+                          </span>
+                        )}
+                        {item.total_unidades === 0 && item.unidades_vencidas > 0 && (
+                          <span className="badge badge-danger" style={{ fontSize: '0.75rem', backgroundColor: '#991b1b' }}>
+                            Sin stock utilizable
                           </span>
                         )}
                         {item.lotes_por_vencer > 0 && (

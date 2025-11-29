@@ -68,6 +68,16 @@ export const generarAlertasAutomaticas = async () => {
     const sieteDelasDelante = new Date();
     sieteDelasDelante.setDate(sieteDelasDelante.getDate() + 7);
 
+    const toDate = (valor) => {
+      if (!valor) return null;
+      if (typeof valor?.toDate === 'function') {
+        const parsed = valor.toDate();
+        return isNaN(parsed) ? null : parsed;
+      }
+      const parsed = new Date(valor);
+      return isNaN(parsed) ? null : parsed;
+    };
+
     // Calcular totales por producto para stock bajo/critico
     const totalesPorProducto = {};
     for (const lote of inventario) {
@@ -75,6 +85,8 @@ export const generarAlertasAutomaticas = async () => {
       if (!codigoProducto) continue; // Saltar si no tiene código
       
       const qty = Number(lote.cantidad_actual) || 0;
+      const fechaVencimiento = toDate(lote.fecha_vencimiento);
+      const esVencido = fechaVencimiento ? fechaVencimiento < ahora : false;
       
       // Convertir kg/litros a g/ml
       let qtyEnGramos = qty;
@@ -85,13 +97,18 @@ export const generarAlertasAutomaticas = async () => {
       if (!totalesPorProducto[codigoProducto]) {
         totalesPorProducto[codigoProducto] = {
           total: 0,
+          totalVencido: 0,
           codigo: codigoProducto,
           nombre: prodInfo.nombre || lote.producto || 'Desconocido',
           stock_minimo: Number(prodInfo.stock_minimo) || 5000, // 5kg/L mínimo en gramos
           unidad_medida: lote.unidad_medida
         };
       }
-      totalesPorProducto[codigoProducto].total += qtyEnGramos;
+      if (esVencido) {
+        totalesPorProducto[codigoProducto].totalVencido += qtyEnGramos;
+      } else {
+        totalesPorProducto[codigoProducto].total += qtyEnGramos;
+      }
     }
 
     // Generar alertas por producto (stock bajo / crítico)
@@ -103,15 +120,19 @@ export const generarAlertasAutomaticas = async () => {
       const totalEnKgOL = info.total / 1000;
 
       if (info.total === 0 && !alertasExistentes.has(keyCritico)) {
+        const mensaje = info.totalVencido > 0
+          ? `${info.nombre} sin stock utilizable (todo el inventario está vencido)`
+          : `${info.nombre} sin stock`;
         await crearAlerta({
           tipo: 'stock_critico',
           titulo: '❌ Stock Agotado',
-          mensaje: `${info.nombre} sin stock`,
+          mensaje,
           prioridad: 'alta',
           metadata: {
             codigo_producto: info.codigo,
             nombre_producto: info.nombre,
-            cantidad_restante: 0
+            cantidad_restante: 0,
+            cantidad_vencida: info.totalVencido / 1000
           }
         });
         alertasGeneradas.stock_critico++;
@@ -146,7 +167,7 @@ export const generarAlertasAutomaticas = async () => {
       
       const loteId = lote.lote || lote.numero_lote || lote.id || 's/lote';
 
-      const fechaVencimiento = lote.fecha_vencimiento?.toDate ? lote.fecha_vencimiento.toDate() : new Date(lote.fecha_vencimiento);
+      const fechaVencimiento = toDate(lote.fecha_vencimiento);
       const stockActual = Number(lote.cantidad_actual) || 0;
 
       // 1. ALERTA: Producto Vencido

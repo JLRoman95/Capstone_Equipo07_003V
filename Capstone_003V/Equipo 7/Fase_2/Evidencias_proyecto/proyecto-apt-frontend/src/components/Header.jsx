@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
 
 const Header = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [currentShift, setCurrentShift] = useState('');
 
@@ -82,11 +84,11 @@ const Header = () => {
   };
 
   return (
-    <header style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1rem 0' }}>
+    <header style={{ backgroundColor: '#f1f5f9', boxShadow: '0 2px 12px rgba(15,23,42,0.08)', padding: '1rem 0' }}>
       <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#111827', margin: 0 }}>Sistema APT</h1>
-          <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>Control de Calidad Alimentaria</p>
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>Sistema APT</h1>
+          <p style={{ fontSize: '0.875rem', color: '#475569', margin: 0 }}>Control de Calidad Alimentaria</p>
         </div>
 
         {/* Clock and Shift Display */}
@@ -137,7 +139,7 @@ const Header = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <NotificationBell />
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#111827', margin: 0, whiteSpace: 'nowrap' }}>{user?.nombre || 'Usuario'}</p>
+            <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#0f172a', margin: 0, whiteSpace: 'nowrap' }}>{user?.nombre || 'Usuario'}</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
               <span 
                 style={{ 
@@ -155,6 +157,13 @@ const Header = () => {
               </span>
             </div>
           </div>
+          <button
+            onClick={() => navigate('/manual')}
+            className="btn btn-outline-primary"
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            Manual de uso
+          </button>
           <button
             onClick={logout}
             className="btn btn-danger"

@@ -49,7 +49,9 @@ async function generarAlertasAutomaticas() {
       if (!inventarioPorProducto[nombreProducto]) {
         inventarioPorProducto[nombreProducto] = {
           lotes: [],
-          totalStock: 0
+          totalStock: 0,
+          stockVencido: 0,
+          unidad: lote.unidad_medida || 'kg'
         };
       }
       
@@ -59,7 +61,13 @@ async function generarAlertasAutomaticas() {
       if (lote.unidad_medida === 'litros') cantidadEnGramos *= 1000;
       
       inventarioPorProducto[nombreProducto].lotes.push(lote);
-      inventarioPorProducto[nombreProducto].totalStock += cantidadEnGramos;
+      const fechaVenc = lote.fecha_vencimiento ? new Date(lote.fecha_vencimiento) : null;
+      const esVencido = fechaVenc ? fechaVenc < hoy : false;
+      if (esVencido) {
+        inventarioPorProducto[nombreProducto].stockVencido += cantidadEnGramos;
+      } else {
+        inventarioPorProducto[nombreProducto].totalStock += cantidadEnGramos;
+      }
     });
 
     // 1. ALERTAS DE PRODUCTOS VENCIDOS
@@ -140,25 +148,40 @@ async function generarAlertasAutomaticas() {
     // 4. ALERTAS DE STOCK CRÍTICO (agotado)
     console.log('🔴 Verificando stock crítico...');
     const todosLosProductos = new Set(productos.map(p => p.nombre));
-    const productosConStock = new Set(Object.keys(inventarioPorProducto));
+    const productosConStock = new Set(
+      Object.entries(inventarioPorProducto)
+        .filter(([, info]) => info.totalStock > 0)
+        .map(([nombre]) => nombre)
+    );
     
     console.log(`  📋 Productos en catálogo: ${todosLosProductos.size}`);
     console.log(`  📦 Productos con stock: ${productosConStock.size}`);
     
-    const productosSinStock = [...todosLosProductos].filter(p => !productosConStock.has(p));
+    const productosSinStock = [...todosLosProductos]
+      .filter(p => !productosConStock.has(p))
+      .map(nombre => ({
+        nombre,
+        unidadesVencidas: inventarioPorProducto[nombre]?.stockVencido || 0,
+        unidad: inventarioPorProducto[nombre]?.unidad || 'kg'
+      }));
     
     if (productosSinStock.length > 0) {
       console.log(`  ⚠️  Productos sin stock:`, productosSinStock);
     }
     
-    productosSinStock.forEach(nombreProducto => {
+    productosSinStock.forEach(({ nombre: nombreProducto, unidadesVencidas, unidad }) => {
+      const descripcion = unidadesVencidas > 0
+        ? `${nombreProducto} - Sin stock utilizable (inventario vencido)`
+        : `${nombreProducto} - Sin stock disponible`;
       alertasGeneradas.push({
         tipo: 'stock_critico',
         prioridad: 'critica',
         titulo: 'Stock Agotado',
-        descripcion: `${nombreProducto} - Sin stock disponible`,
+        descripcion,
         producto_nombre: nombreProducto,
         stock_actual: 0,
+        stock_vencido: (unidadesVencidas / 1000).toFixed(2),
+        unidad_medida: unidad,
         estado: 'activa',
         fecha: new Date().toISOString()
       });

@@ -20,8 +20,8 @@ const PERMISSIONS = {
     proveedores: ['read', 'create'],
     productos: ['read', 'create'],
     inventario: ['create', 'read', 'update'],
-    checklists: ['create', 'read', 'update', 'delete'],
-    produccion: ['create', 'read', 'update', 'delete'],
+    checklists: ['create', 'read', 'update'],
+    produccion: ['create', 'read', 'update'],
     alertas: ['read', 'update'],
     reportes: ['read']
   },
