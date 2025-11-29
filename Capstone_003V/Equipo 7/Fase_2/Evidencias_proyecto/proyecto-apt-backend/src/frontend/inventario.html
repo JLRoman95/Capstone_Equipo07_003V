@@ -253,7 +253,7 @@ async function cargarInventario() {
                   <tr style="${index === 0 ? 'background-color: #fff3e0;' : ''}">
                     <td>${l.id_inventario}</td>
                     <td>${l.stock_actual}</td>
-                    <td>${fechaIngreso.toLocaleDateString()}</td>
+                    <td>${fechaIngreso.toLocaleDateString('es-ES')}</td>
                     <td>${l.fecha_caducidad || '-'}</td>
                     <td>${diasEnStock} días</td>
                     <td><span class="${prioridadClass}">${prioridadTexto}</span></td>
