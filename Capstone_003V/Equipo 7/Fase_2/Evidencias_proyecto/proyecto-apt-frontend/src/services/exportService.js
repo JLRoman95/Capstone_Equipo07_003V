@@ -73,11 +73,11 @@ export const exportarProductosPDF = (productos) => {
   const startY = configurarPDF(doc, 'Catálogo de Productos');
   
   const tableData = productos.map(p => [
-    p.codigo_producto,
-    p.nombre,
-    p.categoria,
-    p.unidad_medida,
-    `$${p.precio_unitario.toLocaleString('es-CL')}`
+    p.codigo_producto || 'N/A',
+    p.nombre || 'N/A',
+    p.categoria || 'N/A',
+    p.unidad_medida || 'N/A',
+    p.precio_unitario ? `$${p.precio_unitario.toLocaleString('es-CL')}` : '$0'
   ]);
   
   autoTable(doc,{
@@ -177,30 +177,38 @@ export const exportarInventarioPDF = (inventario) => {
  */
 export const exportarProduccionPDF = (produccion) => {
   const doc = new jsPDF();
-  const startY = configurarPDF(doc, 'Reporte de Producción');
+  const startY = configurarPDF(doc, 'Reporte de Producción con Ingredientes');
   
-  const tableData = produccion.map(p => [
-    new Date(p.fecha).toLocaleDateString('es-CL'),
-    p.turno,
-    p.responsable,
-    p.plato,
-    p.cantidad
-  ]);
+  const tableData = produccion.map(p => {
+    const ingredientesTexto = p.ingredientes && p.ingredientes.length > 0
+      ? p.ingredientes.map(ing => `${ing.codigo_producto} (${ing.cantidad_total}u)`).join(', ')
+      : 'Sin detalles';
+    
+    return [
+      new Date(p.fecha).toLocaleDateString('es-CL'),
+      p.turno,
+      p.responsable,
+      p.plato,
+      p.cantidad,
+      ingredientesTexto
+    ];
+  });
   
   // Calcular totales
   const totalPorciones = produccion.reduce((sum, p) => sum + p.cantidad, 0);
   
   autoTable(doc,{
     startY,
-    head: [['Fecha', 'Turno', 'Responsable', 'Plato', 'Cantidad']],
+    head: [['Fecha', 'Turno', 'Responsable', 'Plato', 'Cantidad', 'Ingredientes']],
     body: tableData,
-    foot: [['', '', '', 'TOTAL', totalPorciones]],
-    styles: { fontSize: 9, cellPadding: 3 },
+    foot: [['', '', '', 'TOTAL', totalPorciones, '']],
+    styles: { fontSize: 8, cellPadding: 2.5 },
     headStyles: { fillColor: [155, 89, 182], textColor: 255, fontStyle: 'bold' },
     footStyles: { fillColor: [155, 89, 182], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245, 245, 245] },
     columnStyles: {
-      4: { halign: 'center' }
+      4: { halign: 'center', cellWidth: 18 },
+      5: { fontSize: 7, cellWidth: 60 }
     },
     margin: { top: 35, left: 14, right: 14 }
   });
