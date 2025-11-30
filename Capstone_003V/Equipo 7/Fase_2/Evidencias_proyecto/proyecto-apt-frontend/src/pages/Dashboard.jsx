@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import useAnalytics from '../hooks/useAnalytics';
 import usePermissions from '../hooks/usePermissions';
 import Layout from '../components/Layout';
-import { exportarReporteConsolidadoPDF } from '../services/exportService';
+import { exportarReporteConsolidadoPDF, resumirMermasPorProducto } from '../services/exportService';
 
 const iconProps = {
   width: 28,
@@ -211,6 +211,13 @@ const Dashboard = () => {
         .filter(item => item.diasRestantes <= 7 && item.diasRestantes >= 0)
         .sort((a, b) => a.diasRestantes - b.diasRestantes);
 
+      const productoLookup = productosData.reduce((acc, prod) => {
+        const key = (prod.codigo_producto || '').toString().toUpperCase();
+        if (key) acc[key] = prod.nombre || prod.codigo_producto;
+        return acc;
+      }, {});
+      const mermasResumen = resumirMermasPorProducto(produccionData, productoLookup);
+
       const datosConsolidados = {
         proveedores: proveedoresData.length,
         productos: productosData.length,
@@ -220,7 +227,8 @@ const Dashboard = () => {
         checklistsCompletos,
         alertasActivas: alertasData.filter(a => a.estado === 'activa').length,
         alertasCriticas,
-        productosProximosVencer
+        productosProximosVencer,
+        mermasResumen
       };
 
       exportarReporteConsolidadoPDF(datosConsolidados);

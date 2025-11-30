@@ -7,8 +7,7 @@ const Register = () => {
     nombre: '',
     email: '',
     password: '',
-    confirmPassword: '',
-    rol: 'cocinero'
+    confirmPassword: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -41,7 +40,7 @@ const Register = () => {
     setLoading(true);
 
     try {
-      await register(formData.nombre, formData.email, formData.password, formData.rol);
+      await register(formData.nombre, formData.email, formData.password, 'admin');
       setSuccess('Usuario registrado exitosamente');
       setTimeout(() => {
         navigate('/login');
@@ -94,20 +93,10 @@ const Register = () => {
             />
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label className="label" htmlFor="rol">Rol</label>
-            <select
-              id="rol"
-              name="rol"
-              value={formData.rol}
-              onChange={handleChange}
-              className="input"
-              required
-            >
-              <option value="cocinero">Cocinero</option>
-              <option value="auditor">Auditor</option>
-              <option value="admin">Administrador</option>
-            </select>
+          <div style={{ marginBottom: '1rem', backgroundColor: '#ecfdf5', borderRadius: '0.5rem', padding: '0.75rem' }}>
+            <p style={{ margin: 0, color: '#047857', fontSize: '0.9rem' }}>
+              Todas las cuentas creadas desde este formulario reciben el rol <strong>Administrador</strong> por defecto. Luego podrás otorgar otros roles desde el panel "Crear Usuario".
+            </p>
           </div>
 
           <div style={{ marginBottom: '1rem' }}>

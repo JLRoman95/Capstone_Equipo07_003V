@@ -8,7 +8,8 @@ import { exportarChecklistsPDF } from '../services/exportService';
 
 const Checklists = () => {
   const navigate = useNavigate();
-  const { can, getRoleName, isRole } = usePermissions();
+  const { can, getRoleName, isRole, userRole } = usePermissions();
+  const isCocinero = userRole === 'cocinero';
   const [checklists, setChecklists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -51,11 +52,16 @@ const Checklists = () => {
     return valor?.toDate ? valor.toDate() : new Date(valor);
   };
 
+  const visibleChecklists = useMemo(() => (
+    isCocinero ? checklists.filter(c => c.estado === 'completo') : checklists
+  ), [checklists, isCocinero]);
+
   const resumen = useMemo(() => {
-    const total = checklists.length;
-    const completos = checklists.filter(c => c.estado === 'completo').length;
+    const base = isCocinero ? visibleChecklists : checklists;
+    const total = base.length;
+    const completos = base.filter(c => c.estado === 'completo').length;
     const pendientes = total - completos;
-    const recientes = checklists.filter(c => {
+    const recientes = base.filter(c => {
       const fecha = parseChecklistDate(c.fecha);
       if (!fecha || Number.isNaN(fecha.getTime())) return false;
       const hoy = new Date();
@@ -63,11 +69,12 @@ const Checklists = () => {
       return diff <= 7;
     }).length;
     return { total, completos, pendientes, recientes };
-  }, [checklists]);
+  }, [isCocinero, visibleChecklists, checklists]);
 
   const filteredChecklists = useMemo(() => {
-    return checklists.filter(check => {
-      const matchesStatus = statusFilter === 'todos' ? true : check.estado === statusFilter;
+    const statusToMatch = isCocinero ? 'completo' : statusFilter;
+    return visibleChecklists.filter(check => {
+      const matchesStatus = statusToMatch === 'todos' ? true : check.estado === statusToMatch;
       const matchesTurno = turnoFilter === 'todos' ? true : check.turno === turnoFilter;
       const matchesSearch = searchTerm.trim() === ''
         ? true
@@ -77,7 +84,7 @@ const Checklists = () => {
       const matchesFecha = fechaFiltro ? (fechaNormalizada ? fechaNormalizada.toISOString().split('T')[0] === fechaFiltro : false) : true;
       return matchesStatus && matchesTurno && matchesSearch && matchesFecha;
     });
-  }, [checklists, statusFilter, turnoFilter, searchTerm, fechaFiltro]);
+  }, [visibleChecklists, statusFilter, turnoFilter, searchTerm, fechaFiltro, isCocinero]);
 
   useEffect(() => {
     loadData();
@@ -97,6 +104,11 @@ const Checklists = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!can('checklists', 'create')) {
+      setError('Solo los administradores pueden crear checklists');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
     try {
       if (formData.items.length === 0) {
         setError('Debes agregar al menos una tarea');
@@ -142,6 +154,11 @@ const Checklists = () => {
   };
 
   const handleEditChecklist = (checklist) => {
+    if (!can('checklists', 'update')) {
+      setError('Solo los auditores pueden editar checklists');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
     setEditingChecklist({
       ...checklist,
       fecha: checklist.fecha?.toDate 
@@ -153,6 +170,11 @@ const Checklists = () => {
 
   const handleUpdateChecklist = async (e) => {
     e.preventDefault();
+    if (!can('checklists', 'update')) {
+      setError('Solo los auditores pueden actualizar checklists');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
     try {
       if (editingChecklist.items.length === 0) {
         setError('Debes tener al menos una tarea');
@@ -177,6 +199,11 @@ const Checklists = () => {
   };
 
   const handleDeleteChecklist = async (id) => {
+    if (!can('checklists', 'delete')) {
+      setError('No tienes permisos para eliminar checklists');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
     if (window.confirm('¿Estás seguro de eliminar este checklist?')) {
       try {
         await checklistsFirebase.eliminar(id);
@@ -208,7 +235,7 @@ const Checklists = () => {
   };
 
   const handleExport = async () => {
-    const data = filteredChecklists.length ? filteredChecklists : checklists;
+    const data = filteredChecklists.length ? filteredChecklists : visibleChecklists;
     exportarChecklistsPDF(data);
   };
 
@@ -255,6 +282,11 @@ const Checklists = () => {
 
   // Actualizar sólo el valor (temperatura, fecha, texto, sí/no) sin cambiar estado de completado
   const handleUpdateItemValue = async (checklistId, itemIndex, value) => {
+    if (!isRole('auditor')) {
+      setError('Solo los auditores pueden editar los valores del checklist');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
     try {
       const checklist = checklists.find(c => c.id === checklistId);
       if (!checklist) return;
@@ -314,7 +346,11 @@ const Checklists = () => {
       <div className="container">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#111827' }}>✅ Checklists</h1>
+          {isCocinero && (
+            <div className="alert alert-warning" style={{ marginBottom: '1rem', backgroundColor: '#fffbeb', borderColor: '#fcd34d', color: '#92400e' }}>
+              Los cocineros solo pueden consultar checklists completados; otros estados están restringidos para auditoría.
+            </div>
+          )}
             <p style={{ color: '#6b7280' }}>Control de calidad • {getRoleName()}</p>
           </div>
           <div style={{ display: 'flex', gap: '1rem' }}>
@@ -435,8 +471,10 @@ const Checklists = () => {
               border: '1px dashed #d1d5db'
             }}>
               <p style={{ color: '#6b7280', fontWeight: 500 }}>No se encontraron checklists con los filtros seleccionados.</p>
-              {checklists.length === 0 && <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Crea uno nuevo para empezar.</p>}
-              {checklists.length > 0 && (
+              {visibleChecklists.length === 0 && !isCocinero && (
+                <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Crea uno nuevo para empezar.</p>
+              )}
+              {visibleChecklists.length > 0 && (
                 <button
                   type="button"
                   onClick={() => { setStatusFilter('todos'); setTurnoFilter('todos'); setSearchTerm(''); setFechaFiltro(''); }}

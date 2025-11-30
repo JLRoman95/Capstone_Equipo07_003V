@@ -49,6 +49,22 @@ const Produccion = () => {
   });
   const [editingReceta, setEditingReceta] = useState(null);
 
+  const productosUnicos = React.useMemo(() => {
+    const vistos = new Map();
+    productos.forEach((producto) => {
+      if (!producto) return;
+      const nombreClave = (producto.nombre || '').trim().toLowerCase();
+      const key = nombreClave || producto.codigo_producto || producto.id;
+      if (!key || vistos.has(key)) return;
+      vistos.set(key, producto);
+    });
+    return Array.from(vistos.values()).sort((a, b) => {
+      if (!a?.nombre) return 1;
+      if (!b?.nombre) return -1;
+      return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+    });
+  }, [productos]);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -681,8 +697,8 @@ const Produccion = () => {
                     style={{ fontSize: '0.9rem' }}
                   >
                     <option value="">Seleccionar ingrediente</option>
-                    {productos.map(p => (
-                      <option key={p.id} value={p.codigo_producto}>{p.nombre}</option>
+                    {productosUnicos.map(p => (
+                      <option key={p.id || p.codigo_producto} value={p.codigo_producto}>{p.nombre}</option>
                     ))}
                   </select>
                   
@@ -905,8 +921,8 @@ const Produccion = () => {
                     style={{ fontSize: '0.9rem' }}
                   >
                     <option value="">Seleccionar</option>
-                    {productos.map(p => (
-                      <option key={p.id} value={p.codigo_producto}>{p.nombre}</option>
+                    {productosUnicos.map(p => (
+                      <option key={p.id || p.codigo_producto} value={p.codigo_producto}>{p.nombre}</option>
                     ))}
                   </select>
                 </div>
@@ -1087,8 +1103,8 @@ const Produccion = () => {
                       style={{ fontSize: '0.9rem' }}
                     >
                       <option value="">Seleccionar ingrediente</option>
-                      {productos.map(p => (
-                        <option key={p.id} value={p.codigo_producto}>{p.nombre}</option>
+                      {productosUnicos.map(p => (
+                        <option key={p.id || p.codigo_producto} value={p.codigo_producto}>{p.nombre}</option>
                       ))}
                     </select>
                     

@@ -10,7 +10,7 @@ const PERMISSIONS = {
     proveedores: ['create', 'read', 'update', 'delete'],
     productos: ['create', 'read', 'update', 'delete'],
     inventario: ['create', 'read', 'update', 'delete'],
-    checklists: ['create', 'read', 'update', 'delete'],
+    checklists: ['create', 'read', 'delete'],
     produccion: ['create', 'read', 'update', 'delete'],
     alertas: ['create', 'read', 'update', 'delete'],
     reportes: ['read', 'export']
@@ -20,7 +20,7 @@ const PERMISSIONS = {
     proveedores: ['read', 'create'],
     productos: ['read', 'create'],
     inventario: ['create', 'read', 'update'],
-    checklists: ['create', 'read', 'update'],
+    checklists: ['read'],
     produccion: ['create', 'read', 'update'],
     alertas: ['read', 'update'],
     reportes: ['read']

@@ -229,9 +229,9 @@ const CrearUsuario = () => {
                 <option value="admin">⚙️ Administrador</option>
               </select>
               <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                {formData.rol === 'admin' && '• Acceso completo al sistema con permisos de administración'}
-                {formData.rol === 'cocinero' && '• Puede registrar producción, checklists y gestionar inventario'}
-                {formData.rol === 'auditor' && '• Solo lectura: puede ver reportes y estadísticas'}
+                {formData.rol === 'admin' && '• Acceso completo: crea checklists y administra módulos críticos'}
+                {formData.rol === 'cocinero' && '• Registra producción/inventario y solo consulta checklists completados'}
+                {formData.rol === 'auditor' && '• Supervisa calidad: edita checklists y levanta hallazgos'}
               </p>
             </div>
 
@@ -264,9 +264,9 @@ const CrearUsuario = () => {
             ℹ️ Información sobre Roles
           </h3>
           <ul style={{ color: '#1e3a8a', fontSize: '0.875rem', marginLeft: '1.5rem' }}>
-            <li><strong>Admin:</strong> Control total del sistema (CRUD en todos los módulos)</li>
-            <li><strong>Cocinero:</strong> Puede crear producción, checklists y ver inventario</li>
-            <li><strong>Auditor:</strong> Solo lectura en todos los módulos</li>
+            <li><strong>Admin:</strong> Control total del sistema; crea checklists y puede eliminarlos</li>
+            <li><strong>Cocinero:</strong> Registra producción/inventario y únicamente visualiza checklists completados</li>
+            <li><strong>Auditor:</strong> Revisa y edita checklists, gestiona alertas y seguimiento de calidad</li>
           </ul>
         </div>
       </div>

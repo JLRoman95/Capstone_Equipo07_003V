@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { productosFirebase, proveedoresFirebase } from '../services/firestoreService';
 import { useNavigate } from 'react-router-dom';
 import usePermissions from '../hooks/usePermissions';
@@ -84,6 +84,31 @@ const Productos = () => {
     exportarProductosPDF(productos);
   };
 
+  const productosAgrupados = useMemo(() => {
+    const mapa = new Map();
+
+    productos.forEach((prod) => {
+      const codigo = prod.codigo_producto?.trim() || 'SIN-CODIGO';
+      if (!mapa.has(codigo)) {
+        mapa.set(codigo, { ...prod, repeticiones: 1 });
+        return;
+      }
+      const existente = mapa.get(codigo);
+      mapa.set(codigo, {
+        ...existente,
+        nombre: existente.nombre || prod.nombre,
+        categoria: existente.categoria || prod.categoria,
+        unidad_medida: existente.unidad_medida || prod.unidad_medida,
+        precio_unitario: existente.precio_unitario || prod.precio_unitario,
+        repeticiones: (existente.repeticiones || 1) + 1
+      });
+    });
+
+    return Array.from(mapa.values()).sort((a, b) =>
+      (a.codigo_producto || '').localeCompare(b.codigo_producto || '')
+    );
+  }, [productos]);
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', padding: '1.5rem' }}>
       <div className="container">
@@ -133,16 +158,28 @@ const Productos = () => {
                 </tr>
               </thead>
               <tbody>
-                {productos.map((prod) => (
-                  <tr key={prod.id}>
-                    <td><code>{prod.codigo_producto}</code></td>
+                {productosAgrupados.map((prod) => (
+                  <tr key={prod.codigo_producto}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <code>{prod.codigo_producto}</code>
+                        {prod.repeticiones > 1 && (
+                          <span className="badge" style={{ backgroundColor: '#e0e7ff', color: '#3730a3', fontSize: '0.7rem' }}>
+                            {prod.repeticiones} registros
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ fontWeight: '500' }}>{prod.nombre}</td>
                     <td>{prod.categoria}</td>
                     <td>{prod.unidad_medida}</td>
-                    <td>${prod.precio_unitario ? prod.precio_unitario.toLocaleString() : '0'}</td>
+                    <td>${prod.precio_unitario ? Number(prod.precio_unitario).toLocaleString() : '0'}</td>
                     {can('productos', 'delete') && (
                       <td>
-                        <button onClick={() => handleDelete(prod.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}>
+                        <button
+                          onClick={() => handleDelete(prod.id)}
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+                        >
                           🗑️
                         </button>
                       </td>

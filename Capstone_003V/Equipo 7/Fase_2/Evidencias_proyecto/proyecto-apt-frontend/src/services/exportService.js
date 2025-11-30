@@ -6,6 +6,82 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// Helpers para sanitizar datos antes de llevarlos a PDF
+const toSafeDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return isNaN(value) ? null : value;
+  if (typeof value === 'object') {
+    if (typeof value.toDate === 'function') {
+      const date = value.toDate();
+      return isNaN(date) ? null : date;
+    }
+    if (typeof value.seconds === 'number') {
+      const date = new Date(value.seconds * 1000);
+      return isNaN(date) ? null : date;
+    }
+  }
+  const date = new Date(value);
+  return isNaN(date) ? null : date;
+};
+
+const formatDateSafe = (value, fallback = 'Sin fecha') => {
+  const date = toSafeDate(value);
+  return date ? date.toLocaleDateString('es-CL') : fallback;
+};
+
+const formatText = (value, fallback = 'N/A') => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'number') return value.toString();
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : fallback;
+  }
+  return fallback;
+};
+
+const formatTipo = (value, fallback = 'Sin tipo') => {
+  const text = formatText(value, fallback);
+  return text.replace(/_/g, ' ').toUpperCase();
+};
+
+const getAutoTableFinalY = (doc) => {
+  const lastTable = doc.lastAutoTable || doc.previousAutoTable;
+  return lastTable?.finalY ?? null;
+};
+
+export const resumirMermasPorProducto = (registros = [], productoLookup = {}) => {
+  const resumen = new Map();
+  let totalCantidad = 0;
+  let totalEventos = 0;
+
+  registros.forEach((registro) => {
+    if (!registro || !Array.isArray(registro.mermas)) return;
+    registro.mermas.forEach((merma) => {
+      if (!merma) return;
+      const codigoBase = merma.codigo_producto || merma.producto || merma.nombre;
+      const clave = formatText(codigoBase, 'SIN-CODIGO').toUpperCase();
+      const etiqueta = productoLookup[codigoBase] || productoLookup[clave] || merma.producto || merma.nombre || merma.codigo_producto || 'Producto sin descripción';
+      const cantidad = Number(merma.cantidad) || 0;
+
+      totalEventos += 1;
+      totalCantidad += cantidad;
+
+      const existente = resumen.get(clave) || { producto: etiqueta, codigo: codigoBase || 'N/D', cantidad: 0, eventos: 0 };
+      existente.cantidad += cantidad;
+      existente.eventos += 1;
+      resumen.set(clave, existente);
+    });
+  });
+
+  const detalle = Array.from(resumen.values()).sort((a, b) => b.cantidad - a.cantidad);
+
+  return {
+    totalCantidad,
+    totalEventos,
+    detalle
+  };
+};
+
 // Configuración de fuente para español
 const configurarPDF = (doc, titulo) => {
   // Encabezado
@@ -213,6 +289,46 @@ export const exportarProduccionPDF = (produccion) => {
     margin: { top: 35, left: 14, right: 14 }
   });
   
+  const resumenMermas = resumirMermasPorProducto(produccion);
+  if (resumenMermas.totalEventos > 0) {
+    let sectionY = getAutoTableFinalY(doc) || doc.previousAutoTable?.finalY || startY + 60;
+    if (sectionY > 230) {
+      doc.addPage();
+      sectionY = 20;
+    } else {
+      sectionY += 12;
+    }
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Resumen de Mermas', 14, sectionY);
+    sectionY += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Eventos registrados: ${resumenMermas.totalEventos}`, 14, sectionY);
+    sectionY += 6;
+    doc.text(`Cantidad total descartada: ${resumenMermas.totalCantidad} unidades`, 14, sectionY);
+    sectionY += 10;
+
+    autoTable(doc, {
+      startY: sectionY,
+      head: [['Producto', 'Eventos', 'Cantidad Total']],
+      body: resumenMermas.detalle.map(item => [
+        `${formatText(item.producto, 'Producto sin descripción')} (${formatText(item.codigo, 'N/D')})`,
+        item.eventos,
+        item.cantidad
+      ]),
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [15, 118, 110], textColor: 255 },
+      columnStyles: {
+        1: { halign: 'center' },
+        2: { halign: 'center' }
+      },
+      margin: { left: 14, right: 14 }
+    });
+
+  }
+
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -284,12 +400,12 @@ export const exportarAlertasPDF = (alertas) => {
   const startY = configurarPDF(doc, 'Reporte de Alertas del Sistema');
   
   const tableData = alertas.map(alerta => [
-    alerta.tipo.replace('_', ' ').toUpperCase(),
-    alerta.titulo,
-    alerta.descripcion,
-    alerta.prioridad.toUpperCase(),
-    alerta.estado,
-    new Date(alerta.fecha).toLocaleDateString('es-CL')
+    formatTipo(alerta.tipo),
+    formatText(alerta.titulo, 'Sin título'),
+    formatText(alerta.descripcion, 'Sin descripción'),
+    formatText(alerta.prioridad, 'N/D').toUpperCase(),
+    formatText(alerta.estado, 'N/D'),
+    formatDateSafe(alerta.fecha)
   ]);
   
   autoTable(doc,{
@@ -362,7 +478,8 @@ export const exportarReporteConsolidadoPDF = (datos) => {
   currentY += 12;
   
   // Alertas críticas
-  if (datos.alertasCriticas && datos.alertasCriticas.length > 0) {
+  const alertasCriticas = Array.isArray(datos.alertasCriticas) ? datos.alertasCriticas : [];
+  if (alertasCriticas.length > 0) {
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('Alertas Críticas', 14, currentY);
@@ -371,21 +488,25 @@ export const exportarReporteConsolidadoPDF = (datos) => {
     autoTable(doc,{
       startY: currentY,
       head: [['Prioridad', 'Tipo', 'Descripción']],
-      body: datos.alertasCriticas.map(a => [
-        a.prioridad.toUpperCase(),
-        a.tipo.replace('_', ' '),
-        a.descripcion
+      body: alertasCriticas.map(a => [
+        formatText(a.prioridad, 'N/D').toUpperCase(),
+        formatTipo(a.tipo, 'sin tipo'),
+        formatText(a.descripcion, 'Sin descripción')
       ]),
       styles: { fontSize: 9, cellPadding: 3 },
       headStyles: { fillColor: [231, 76, 60], textColor: 255 },
       margin: { left: 14, right: 14 }
     });
     
-    currentY = doc.previousAutoTable.finalY + 10;
+    const finalY = getAutoTableFinalY(doc);
+    if (finalY) {
+      currentY = finalY + 10;
+    }
   }
   
   // Productos próximos a vencer
-  if (datos.productosProximosVencer && datos.productosProximosVencer.length > 0) {
+  const productosProximos = Array.isArray(datos.productosProximosVencer) ? datos.productosProximosVencer : [];
+  if (productosProximos.length > 0) {
     if (currentY > 240) {
       doc.addPage();
       currentY = 20;
@@ -399,14 +520,49 @@ export const exportarReporteConsolidadoPDF = (datos) => {
     autoTable(doc,{
       startY: currentY,
       head: [['Código', 'Lote', 'Fecha Vencimiento', 'Días Restantes']],
-      body: datos.productosProximosVencer.map(p => [
-        p.codigo_producto,
-        p.lote,
-        new Date(p.fecha_vencimiento).toLocaleDateString('es-CL'),
-        p.diasRestantes
+      body: productosProximos.map(p => [
+        formatText(p.codigo_producto || p.producto, 'Sin código'),
+        formatText(p.lote || p.numero_lote, 'Sin lote'),
+        formatDateSafe(p.fecha_vencimiento),
+        Number.isFinite(p.diasRestantes) ? `${p.diasRestantes} días` : 'N/D'
       ]),
       styles: { fontSize: 9, cellPadding: 3 },
       headStyles: { fillColor: [243, 156, 18], textColor: 255 },
+      margin: { left: 14, right: 14 }
+    });
+    currentY = getAutoTableFinalY(doc) ? getAutoTableFinalY(doc) + 12 : currentY + 12;
+  }
+  const resumenMermas = datos.mermasResumen;
+  if (resumenMermas && resumenMermas.totalEventos > 0) {
+    if (currentY > 240 || !currentY) {
+      doc.addPage();
+      currentY = 20;
+    }
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Mermas Registradas', 14, currentY);
+    currentY += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Eventos totales: ${resumenMermas.totalEventos}`, 14, currentY);
+    currentY += 6;
+    doc.text(`Cantidad total descartada: ${resumenMermas.totalCantidad} unidades`, 14, currentY);
+    currentY += 8;
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Producto', 'Eventos', 'Cantidad']],
+      body: resumenMermas.detalle.map(item => [
+        `${formatText(item.producto, 'Producto')} (${formatText(item.codigo, 'N/D')})`,
+        item.eventos,
+        item.cantidad
+      ]),
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [99, 102, 241], textColor: 255 },
+      columnStyles: {
+        1: { halign: 'center' },
+        2: { halign: 'center' }
+      },
       margin: { left: 14, right: 14 }
     });
   }

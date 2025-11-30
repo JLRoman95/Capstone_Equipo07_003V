@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { inventarioFirebase, productosFirebase } from '../services/firestoreService';
 import { useNavigate } from 'react-router-dom';
 import usePermissions from '../hooks/usePermissions';
@@ -131,6 +131,21 @@ const Inventario = () => {
     const producto = productos.find(p => p.id === codigoProducto || p.codigo_producto === codigoProducto);
     return producto?.stock_minimo ?? 0;
   };
+
+  const productosUnicos = useMemo(() => {
+    const map = new Map();
+    productos.forEach((producto) => {
+      const key = (producto.codigo_producto || producto.id || '').toString().trim().toUpperCase();
+      if (!key) return;
+      if (!map.has(key)) {
+        map.set(key, { ...producto, repeticiones: 1 });
+      } else {
+        const existente = map.get(key);
+        map.set(key, { ...existente, repeticiones: (existente.repeticiones || 1) + 1 });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  }, [productos]);
   
   const agruparInventarioPorProducto = () => {
     const agrupado = {};
@@ -323,7 +338,15 @@ const Inventario = () => {
                           </span>
                         )}
                         {item.total_unidades === 0 && item.unidades_vencidas > 0 && (
-                          <span className="badge badge-danger" style={{ fontSize: '0.75rem', backgroundColor: '#991b1b' }}>
+                          <span
+                            className="badge badge-danger"
+                            style={{
+                              fontSize: '0.75rem',
+                              backgroundColor: '#991b1b',
+                              color: '#f8fafc',
+                              fontWeight: 700
+                            }}
+                          >
                             Sin stock utilizable
                           </span>
                         )}
@@ -384,8 +407,11 @@ const Inventario = () => {
                   required
                 >
                   <option value="">Seleccionar producto</option>
-                  {productos.map(p => (
-                    <option key={p.id} value={p.codigo_producto}>{p.nombre}</option>
+                  {productosUnicos.map(p => (
+                    <option key={p.codigo_producto || p.id} value={p.codigo_producto}>
+                      {p.nombre}
+                      {p.repeticiones > 1 ? ` (${p.repeticiones} registros)` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -498,12 +524,17 @@ const Inventario = () => {
                       const dIngreso = toDate(lote.fecha_ingreso);
                       const diasRestantes = dVence ? Math.ceil((dVence - new Date()) / (1000 * 60 * 60 * 24)) : NaN;
                       const diasEnStock = dIngreso ? Math.floor((new Date() - dIngreso) / (1000 * 60 * 60 * 24)) : NaN;
+                      const backgroundColor = isExpired(lote.fecha_vencimiento) ? '#fee2e2' : 
+                                          isExpiringSoon(lote.fecha_vencimiento) ? '#fef3c7' : 
+                                          index === 0 ? '#fff7ed' : 'white';
                       return (
-                        <tr key={lote.id} style={{ 
-                          backgroundColor: isExpired(lote.fecha_vencimiento) ? '#fee2e2' : 
-                                         isExpiringSoon(lote.fecha_vencimiento) ? '#fef3c7' : 
-                                         index === 0 ? '#fff7ed' : 'white' 
-                        }}>
+                        <tr
+                          key={lote.id}
+                          style={{
+                            backgroundColor,
+                            color: '#111827'
+                          }}
+                        >
                           <td style={{ fontWeight: '500' }}>{getLoteId(lote)}</td>
                           <td>{lote.cantidad_actual} {lote.unidad_medida || 'unidades'}</td>
                           <td>{formatDate(lote.fecha_ingreso)}</td>

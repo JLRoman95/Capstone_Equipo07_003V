@@ -16,7 +16,7 @@ const firebaseAuthService = {
   /**
    * Registrar nuevo usuario
    */
-  async register(nombre, email, password, rol = 'operario') {
+  async register(nombre, email, password, rol = 'admin') {
     try {
       console.log('🔥 Iniciando registro en Firebase...');
       console.log('Email:', email, 'Rol:', rol);

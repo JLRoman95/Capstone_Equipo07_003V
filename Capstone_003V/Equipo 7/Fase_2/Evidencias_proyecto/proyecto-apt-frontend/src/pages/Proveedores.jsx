@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { proveedoresFirebase } from '../services/firestoreService';
 import { useNavigate } from 'react-router-dom';
 import usePermissions from '../hooks/usePermissions';
@@ -12,6 +12,7 @@ const Proveedores = () => {
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [dedupeMessage, setDedupeMessage] = useState('');
   const [formData, setFormData] = useState({
     nombre: '',
     contacto: '',
@@ -28,13 +29,55 @@ const Proveedores = () => {
   const loadData = async () => {
     try {
       const data = await proveedoresFirebase.listar();
-      setProveedores(data);
+      const cleaned = await removeDuplicates(data);
+      setProveedores(cleaned);
     } catch (error) {
       setError('Error al cargar proveedores');
       console.error(error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const normalizeText = (value) => value?.toString().trim().toLowerCase() || '';
+  const normalizePhone = (value) => value?.toString().replace(/[^0-9+]/g, '') || '';
+
+  const buildDuplicateKey = (prov) => {
+    const emailKey = normalizeText(prov.email);
+    if (emailKey) return `email:${emailKey}`;
+    const phoneKey = normalizePhone(prov.telefono);
+    if (phoneKey) return `phone:${phoneKey}`;
+    const nombreKey = normalizeText(prov.nombre);
+    const contactoKey = normalizeText(prov.contacto);
+    if (nombreKey || contactoKey) return `nombre:${nombreKey}|contacto:${contactoKey}`;
+    return prov.id || `tmp:${Math.random().toString(36).substring(2)}`;
+  };
+
+  const removeDuplicates = async (lista) => {
+    const map = new Map();
+    const duplicates = [];
+
+    lista.forEach((prov) => {
+      const key = buildDuplicateKey(prov);
+      if (map.has(key)) {
+        duplicates.push(prov);
+      } else {
+        map.set(key, prov);
+      }
+    });
+
+    if (duplicates.length) {
+      await Promise.all(
+        duplicates
+          .filter((dup) => dup?.id)
+          .map((dup) => proveedoresFirebase.eliminar(dup.id))
+      );
+      setDedupeMessage(`${duplicates.length} proveedores duplicados fueron eliminados automáticamente.`);
+    } else {
+      setDedupeMessage('');
+    }
+
+    return Array.from(map.values());
   };
 
   const handleSubmit = async (e) => {
@@ -74,6 +117,14 @@ const Proveedores = () => {
     exportarProveedoresPDF(proveedores);
   };
 
+  const proveedoresConId = useMemo(() =>
+    proveedores.map((prov, index) => ({
+      ...prov,
+      displayId: `PRV-${String(index + 1).padStart(3, '0')}`
+    })),
+    [proveedores]
+  );
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', padding: '1.5rem' }}>
       <div className="container">
@@ -95,6 +146,11 @@ const Proveedores = () => {
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
+        {!error && dedupeMessage && (
+          <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
+            {dedupeMessage}
+          </div>
+        )}
 
         <ImportExportButtons
           tipo="proveedores"
@@ -114,6 +170,7 @@ const Proveedores = () => {
             <table className="table">
               <thead>
                 <tr>
+                  <th>ID</th>
                   <th>Nombre</th>
                   <th>Contacto</th>
                   <th>Teléfono</th>
@@ -123,8 +180,11 @@ const Proveedores = () => {
                 </tr>
               </thead>
               <tbody>
-                {proveedores.map((prov) => (
-                  <tr key={prov.id}>
+                {proveedoresConId.map((prov) => (
+                  <tr key={prov.id || prov.displayId}>
+                    <td>
+                      <code>{prov.displayId}</code>
+                    </td>
                     <td style={{ fontWeight: '500' }}>{prov.nombre}</td>
                     <td>{prov.contacto}</td>
                     <td>{prov.telefono}</td>

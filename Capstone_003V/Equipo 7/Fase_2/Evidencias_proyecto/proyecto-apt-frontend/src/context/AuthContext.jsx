@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (nombre, email, password, rol) => {
+  const register = async (nombre, email, password, rol = 'admin') => {
     try {
       const data = await firebaseAuthService.register(nombre, email, password, rol);
       
