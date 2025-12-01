@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 
@@ -200,6 +201,7 @@ const ROLE_MANUALS = {
 
 const ManualUsuarios = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const defaultRole = user?.rol || 'cocinero';
   const [selectedRole, setSelectedRole] = useState(defaultRole);
 
@@ -207,7 +209,23 @@ const ManualUsuarios = () => {
 
   return (
     <Layout>
-      <div className="container" style={{ padding: '2.5rem 1rem 3rem' }}>
+      <div className="container" style={{ padding: '2.5rem 1rem 3rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <button
+            onClick={() => navigate(-1)}
+            className="btn"
+            style={{
+              backgroundColor: '#64748b',
+              color: '#f8fafc',
+              borderRadius: '999px',
+              padding: '0.5rem 1.5rem',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            ← Volver
+          </button>
+        </div>
         <div style={{ background: 'rgba(15,23,42,0.6)', borderRadius: '1rem', padding: '2rem', border: '1px solid rgba(148,163,184,0.2)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <p style={{ color: '#38bdf8', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>Centro de ayuda</p>

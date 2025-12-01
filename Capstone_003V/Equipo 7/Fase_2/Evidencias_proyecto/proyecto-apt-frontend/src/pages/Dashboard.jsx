@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import useAnalytics from '../hooks/useAnalytics';
 import usePermissions from '../hooks/usePermissions';
 import Layout from '../components/Layout';
-import { exportarReporteConsolidadoPDF, resumirMermasPorProducto } from '../services/exportService';
+import { exportarReporteConsolidadoPDF } from '../services/exportService';
+import { buildConsolidatedReportPayload } from '../utils/reportUtils';
 
 const iconProps = {
   width: 28,
@@ -200,36 +201,14 @@ const Dashboard = () => {
         alertasFirebase.listar()
       ]);
 
-      const alertasCriticas = alertasData.filter(a => a.prioridad === 'alta' && a.estado === 'activa');
-      const checklistsCompletos = checklistsData.filter(c => c.estado === 'completo').length;
-      
-      const productosProximosVencer = inventarioData
-        .map(item => ({
-          ...item,
-          diasRestantes: Math.ceil((new Date(item.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24))
-        }))
-        .filter(item => item.diasRestantes <= 7 && item.diasRestantes >= 0)
-        .sort((a, b) => a.diasRestantes - b.diasRestantes);
-
-      const productoLookup = productosData.reduce((acc, prod) => {
-        const key = (prod.codigo_producto || '').toString().toUpperCase();
-        if (key) acc[key] = prod.nombre || prod.codigo_producto;
-        return acc;
-      }, {});
-      const mermasResumen = resumirMermasPorProducto(produccionData, productoLookup);
-
-      const datosConsolidados = {
-        proveedores: proveedoresData.length,
-        productos: productosData.length,
-        inventario: inventarioData.length,
-        produccion: produccionData.length,
-        checklists: checklistsData.length,
-        checklistsCompletos,
-        alertasActivas: alertasData.filter(a => a.estado === 'activa').length,
-        alertasCriticas,
-        productosProximosVencer,
-        mermasResumen
-      };
+      const datosConsolidados = buildConsolidatedReportPayload({
+        proveedores: proveedoresData,
+        productos: productosData,
+        inventario: inventarioData,
+        produccion: produccionData,
+        checklists: checklistsData,
+        alertas: alertasData
+      });
 
       exportarReporteConsolidadoPDF(datosConsolidados);
     } catch (error) {

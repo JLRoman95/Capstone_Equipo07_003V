@@ -81,13 +81,8 @@ const Login = () => {
           </button>
         </form>
 
-        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-          <button
-            onClick={() => navigate('/register')}
-            style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', textDecoration: 'underline' }}
-          >
-            ¿No tienes cuenta? Regístrate aquí
-          </button>
+        <div style={{ marginTop: '1.5rem', textAlign: 'center', color: '#4b5563', fontSize: '0.9rem' }}>
+          ¿Necesitas acceso? Solicita a un administrador que cree tu usuario.
         </div>
 
         <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.875rem', color: '#6b7280' }}>

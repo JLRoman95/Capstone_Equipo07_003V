@@ -6,6 +6,7 @@ import Layout from '../components/Layout';
 import ImportExportButtons from '../components/ImportExportButtons';
 import { validarInventario } from '../services/importService';
 import { exportarInventarioPDF } from '../services/exportService';
+import { buildUniqueProductOptions } from '../utils/productUtils';
 
 const Inventario = () => {
   const navigate = useNavigate();
@@ -132,20 +133,7 @@ const Inventario = () => {
     return producto?.stock_minimo ?? 0;
   };
 
-  const productosUnicos = useMemo(() => {
-    const map = new Map();
-    productos.forEach((producto) => {
-      const key = (producto.codigo_producto || producto.id || '').toString().trim().toUpperCase();
-      if (!key) return;
-      if (!map.has(key)) {
-        map.set(key, { ...producto, repeticiones: 1 });
-      } else {
-        const existente = map.get(key);
-        map.set(key, { ...existente, repeticiones: (existente.repeticiones || 1) + 1 });
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
-  }, [productos]);
+  const productosUnicos = useMemo(() => buildUniqueProductOptions(productos), [productos]);
   
   const agruparInventarioPorProducto = () => {
     const agrupado = {};
@@ -408,7 +396,7 @@ const Inventario = () => {
                 >
                   <option value="">Seleccionar producto</option>
                   {productosUnicos.map(p => (
-                    <option key={p.codigo_producto || p.id} value={p.codigo_producto}>
+                    <option key={p.optionValue} value={p.codigo_producto}>
                       {p.nombre}
                       {p.repeticiones > 1 ? ` (${p.repeticiones} registros)` : ''}
                     </option>

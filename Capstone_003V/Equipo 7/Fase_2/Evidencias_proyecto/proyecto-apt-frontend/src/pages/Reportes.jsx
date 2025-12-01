@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { inventarioFirebase, produccionFirebase, proveedoresFirebase, productosFirebase, checklistsFirebase, alertasFirebase } from '../services/firestoreService';
-import { exportarInventarioPDF, exportarProduccionPDF, exportarReporteConsolidadoPDF, resumirMermasPorProducto } from '../services/exportService';
+import { exportarInventarioPDF, exportarProduccionPDF, exportarReporteConsolidadoPDF } from '../services/exportService';
 import { useNavigate } from 'react-router-dom';
+import { buildConsolidatedReportPayload } from '../utils/reportUtils';
 
 const Reportes = () => {
   const navigate = useNavigate();
@@ -52,41 +53,14 @@ const Reportes = () => {
         return fecha >= inicio && fecha <= fin;
       });
 
-      const productosProximosVencer = inventarioFiltrado
-        .map(item => ({
-          codigo_producto: item.codigo_producto,
-          lote: item.lote,
-          fecha_vencimiento: item.fecha_vencimiento,
-          diasRestantes: Math.ceil((new Date(item.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24))
-        }))
-        .filter(item => item.diasRestantes >= 0 && item.diasRestantes <= 7)
-        .sort((a, b) => a.diasRestantes - b.diasRestantes);
-
-      const productoLookup = productos.reduce((acc, producto) => {
-        const key = (producto.codigo_producto || '').toString().toUpperCase();
-        if (key) acc[key] = producto.nombre || producto.codigo_producto;
-        return acc;
-      }, {});
-
-      const mermasResumen = resumirMermasPorProducto(produccionFiltrada, productoLookup);
-
-      // Resumen y datos para el PDF
-      const datos = {
-        proveedores: proveedores.length,
-        productos: productos.length,
-        inventario: inventarioFiltrado.length,
-        produccion: produccionFiltrada.length,
-        checklists: checklistsFiltrados.length,
-        checklistsCompletos: checklistsFiltrados.filter(c => c.estado === 'completo').length,
-        alertasActivas: alertasFiltradas.length,
-        alertasCriticas: alertasFiltradas.filter(a => a.prioridad === 'alta').map(a => ({
-          prioridad: a.prioridad,
-          tipo: a.tipo,
-          descripcion: a.titulo || a.mensaje
-        })),
-        productosProximosVencer,
-        mermasResumen
-      };
+      const datos = buildConsolidatedReportPayload({
+        proveedores,
+        productos,
+        inventario: inventarioFiltrado,
+        produccion: produccionFiltrada,
+        checklists: checklistsFiltrados,
+        alertas: alertasFiltradas
+      });
 
       exportarReporteConsolidadoPDF(datos);
     } catch (error) {
