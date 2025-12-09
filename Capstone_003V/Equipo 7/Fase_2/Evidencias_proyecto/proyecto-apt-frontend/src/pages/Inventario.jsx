@@ -53,6 +53,13 @@ const Inventario = () => {
 
   const getLoteId = (lote) => lote?.lote || lote?.numero_lote || lote?.id || '-';
 
+  const getCantidadActual = (registro) => {
+    if (!registro) return 0;
+    const valor = registro.cantidad_actual ?? registro.cantidad_unidades ?? registro.cantidad ?? 0;
+    const numero = Number(valor);
+    return Number.isFinite(numero) ? numero : 0;
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -76,9 +83,11 @@ const Inventario = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const cantidadParseada = parseInt(formData.cantidad_unidades, 10) || 0;
       const newItem = {
         ...formData,
-        cantidad_unidades: parseInt(formData.cantidad_unidades),
+        cantidad_unidades: cantidadParseada,
+        cantidad_actual: cantidadParseada,
         estado: 'disponible'
       };
       await inventarioFirebase.crear(newItem);
@@ -156,7 +165,7 @@ const Inventario = () => {
       
       const grupo = agrupado[key];
       grupo.lotes.push(item);
-      const qty = Number(item.cantidad_actual) || 0;
+      const qty = getCantidadActual(item);
       const expirado = isExpired(item.fecha_vencimiento);
       
       if (expirado) {
@@ -479,7 +488,7 @@ const Inventario = () => {
                   <strong>Total Lotes:</strong> {lotesProducto.length}
                 </div>
                 <div>
-                  <strong>Total Unidades:</strong> {lotesProducto.reduce((sum, lote) => sum + (Number(lote.cantidad_actual) || 0), 0)} {lotesProducto[0]?.unidad_medida || 'unidades'}
+                  <strong>Total Unidades:</strong> {lotesProducto.reduce((sum, lote) => sum + getCantidadActual(lote), 0)} {lotesProducto[0]?.unidad_medida || 'unidades'}
                 </div>
               </div>
             </div>
@@ -524,7 +533,7 @@ const Inventario = () => {
                           }}
                         >
                           <td style={{ fontWeight: '500' }}>{getLoteId(lote)}</td>
-                          <td>{lote.cantidad_actual} {lote.unidad_medida || 'unidades'}</td>
+                          <td>{getCantidadActual(lote)} {lote.unidad_medida || 'unidades'}</td>
                           <td>{formatDate(lote.fecha_ingreso)}</td>
                           <td>{formatDate(lote.fecha_vencimiento)}</td>
                           <td>{isNaN(diasEnStock) ? '-' : `${diasEnStock} días`}</td>
